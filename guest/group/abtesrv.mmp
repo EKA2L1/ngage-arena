@@ -1,0 +1,9 @@
+TARGET abtesrv.dll
+TARGETTYPE dll
+UID 0x1000008d 0xe000a001
+SOURCEPATH ..
+SOURCE abtesrv.cpp
+SYSTEMINCLUDE \epoc32\include
+LIBRARY euser.lib commdb.lib
+DEFFILE abtesrv.def
+NOSTRICTDEF
