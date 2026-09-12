@@ -12,9 +12,10 @@ The private service was exercised through the installed Tomb Raider game, GSB Ar
 | Messages after identity restoration | Restoring the original account produced the incoming “A beat your time” message and the native Revenge action. |
 | Monthly trophies | Temporary completed-month scores produced Gold: Arena and Silver: A in the native hierarchy. Those temporary events were removed after inspection. Live awards use actual completed UTC months. |
 | Strategy guide | A locally recorded Caves clip was imported into the native level directory, downloaded and played with pause, rewind and fast-forward. A second recording was uploaded directly through the game's Strategy guide → Caves category with caption “Guide”, appeared in that level directory, and was downloaded into the native player. |
+| Offline playback | With the local server stopped and no UDP listener on port 41001, the downloaded clip rewound from its end, returned to the start, played and paused at 4.12 seconds. This proves local playback within that loaded session; reopening saved guides after restarting offline is not yet verified. |
 | Guide entry inside a level | An authored Caves room-0 `adverts.dat` record displayed the native STRATEGY icon. The left softkey opened the level's guide directory directly and downloaded a clip into the native player. The same eight-byte record was then installed through the validated setup helper with a reversible backup. |
 
-The separate live “mentor Lara” and independent offline text-tip viewer described by historical accounts remain unverified and are not claimed as restored. Official downloadable courses and walkthroughs are not included. The imported clips and reference races in this local database are demonstration content, not a complete game walkthrough.
+The separate live “mentor Lara” and native offline library for reopening downloaded guides after a restart described by historical accounts remain unverified and are not claimed as restored. Official downloadable courses and walkthroughs are not included. The imported clips and reference races in this local database are demonstration content, not a complete game walkthrough.
 
 ## Automated checks
 

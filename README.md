@@ -92,4 +92,6 @@ The tests cover packet layouts and paging, reordered and duplicate uploads, real
 
 `guest/` contains the source and S60 SDK build files for `assets/abtesrv.dll`. The DLL preserves the original provider interface while using the local server. It does not send SMS messages or require a cellular subscription.
 
-See [PROTOCOL.md](PROTOCOL.md) for packet and replay layouts, native screen contracts, and unresolved historical features. [VALIDATION.md](VALIDATION.md) records the native simulator checks. Guide playback is verified; a separate live mentor character and independent offline text-tip viewer are not yet restored.
+See [PROTOCOL.md](PROTOCOL.md) for packet and replay layouts, native screen contracts, and unresolved historical features. [VALIDATION.md](VALIDATION.md) records the native simulator checks. Guide playback is verified; a separate live mentor character and native offline library for reopening downloaded guides after a restart are not yet restored.
+
+After a guide has downloaded, its playback controls work locally even while the private server is stopped. Directory access and fresh downloads still require the service.
