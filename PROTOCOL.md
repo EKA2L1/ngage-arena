@@ -64,7 +64,9 @@ The server validates the file structure, time checksum and registered course des
 
 ## Scope and unresolved historical claims
 
-The implemented guide path plays full native recordings with pause, rewind and fast-forward. It does not yet reproduce the separate, simultaneously controllable “mentor Lara” described in contemporary player accounts, or an native offline library for reopening downloaded guides after a restart. Neither a valid mentor file format nor that text viewer has been established in the recognized binaries. These are not claimed as verified features.
+The implemented guide path plays full native recordings with pause, rewind and fast-forward. It does not yet reproduce the separate, simultaneously controllable “mentor Lara” described in contemporary player accounts, or a native offline library for reopening downloaded guides after a restart. Neither a valid mentor file format nor that reopening workflow has been established in the recognized binaries. These are not claimed as restored features.
+
+The recognized game's clip loader at `0x0044a904` has one direct caller, at `0x00421960`. Its caller selects `current.i3d` for the Arena return code -2 or the built-in demo for -6, then clears the race flag before loading the recording. The nearby code that strips a `-r` filename prefix does not expose an additional command-line or menu entry. With the server stopped, a cold launch preserved the downloaded 642-byte `current.i3d`, but the Options screen offered no clip browser and Arena entered its connection screen before displaying directories. This narrows the missing offline workflow to access to the saved content, rather than file persistence or replay controls.
 
 The game also reads an optional `adverts.dat` table to offer location-specific guide entry points. Its eight-byte records combine room in bits 0–7, minimum Z in 8–12, minimum X in 13–17, maximum Z in 18–22, maximum X in 23–27, and level in 28–31, followed by a `u32` directory ID. Tile bounds are inclusive and relative to the room's origin. The loader accepts at most 100 matching records per level, and the client's strategy argument retains only a 16-bit directory ID.
 
