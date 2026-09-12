@@ -5,6 +5,7 @@ from pathlib import Path
 import struct
 
 from .codec import ProtocolError
+from .guides import encode_links
 from .replay import GHOST_HEADER, clip_inputs, read_clip, read_ghost, time_checksum
 from .store import Store
 
@@ -23,6 +24,9 @@ def main():
     command.add_argument('id', type=int)
     command.add_argument('file', type=Path)
     commands.add_parser('status')
+    command = commands.add_parser('author-guide-links')
+    command.add_argument('description', type=Path, help='JSON array of level, room, bounds and optional directory records')
+    command.add_argument('output', type=Path)
     command = commands.add_parser('author-course')
     command.add_argument('clip', type=Path)
     command.add_argument('output', type=Path)
@@ -37,7 +41,10 @@ def main():
     args = parser.parse_args()
     store = Store(args.data)
     try:
-        if args.command == 'author-course':
+        if args.command == 'author-guide-links':
+            args.output.write_bytes(encode_links(json.loads(args.description.read_text())))
+            print('Native guide links written; install with arena.setup --guide-links.')
+        elif args.command == 'author-course':
             course = GHOST_HEADER.pack(args.race_id,args.level,args.room,len(args.checkpoint),
                 args.yaw & 0xffffffff,0,args.limit_seconds*25,*args.start,0x1234)
             course += b''.join(struct.pack('<iii',*point) for point in args.checkpoint)
@@ -67,7 +74,7 @@ def main():
             }.items()}
             result['trophies'] = [dict(row) for row in store.trophies()]
             print(json.dumps(result,indent=2))
-    except (OSError,ValueError,ProtocolError,struct.error) as error:
+    except (OSError,ValueError,ProtocolError,struct.error,KeyError,TypeError) as error:
         parser.exit(1,f'{error}\n')
     finally:
         store.db.close()

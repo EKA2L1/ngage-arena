@@ -11,6 +11,8 @@ import struct
 
 import yaml
 
+from .guides import decode_links
+
 DISABLED_GSB = '5e08ad825522685b50b08381f33815b2b441aaecd4950861627374d705cb9c49'
 ENABLED_GSB = '4134cc9b01ba9cc19b3815a97964fc1bc744fc1bde77ef0bcc073be8bb839dcd'
 REPAIRED_GSB = 'f602a6abe1aa7e33bbe0152ef3925e0cdb144bf4819d67bbfafbf14a0f9d77bf'
@@ -42,7 +44,7 @@ def enable_arena(data):
     return data[:offset] + gzip.compress(payload, mtime=0) + data[-4:]
 
 
-def configure(data, address):
+def configure(data, address, guide_links=None):
     data = Path(data).resolve()
     address = str(ipaddress.IPv4Address(address))
     config = data / 'config.yml'
@@ -69,6 +71,10 @@ def configure(data, address):
         data / 'drives/e/game.id': b'TombRaider 1.0',
         data / 'drives/c/system/libs/abtesrv.dll': billing.read_bytes(),
     }
+    if guide_links is not None:
+        links = Path(guide_links).read_bytes()
+        decode_links(links)
+        updates[data / 'drives/c/system/apps/tombraider/adverts.dat'] = links
     changed = {path: content for path, content in updates.items()
                if not path.exists() or path.read_bytes() != content}
     if not changed:
@@ -104,16 +110,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, help='EKA2L1 Documents/data directory; stop the emulator first')
     parser.add_argument('--server', default='127.0.0.1')
+    parser.add_argument('--guide-links', type=Path, help='Install an authored adverts.dat room-to-guide mapping')
     parser.add_argument('--restore', type=Path, help='Restore a setup backup directory; stop the emulator first')
     args = parser.parse_args()
     if bool(args.data) == bool(args.restore):
         parser.error('Specify exactly one of --data or --restore')
+    if args.restore and args.guide_links:
+        parser.error('--guide-links requires --data')
     try:
         if args.restore:
             restore(args.restore)
             print('Arena setup backup restored.')
             return
-        backup = configure(args.data, args.server)
+        backup = configure(args.data, args.server, args.guide_links)
     except (OSError, ValueError, gzip.BadGzipFile) as error:
         parser.exit(1, f'Setup failed: {error}\n')
     print(f'Arena configured. Backups: {backup}' if backup else 'Arena is already configured.')

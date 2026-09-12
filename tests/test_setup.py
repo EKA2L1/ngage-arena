@@ -24,9 +24,18 @@ class SetupTests(unittest.TestCase):
             commdb = data / 'drives/c/system/data/Cdbv2.dat'
             commdb.parent.mkdir(parents=True)
             commdb.write_bytes(b'original database')
+            links = data / 'authored.dat'
+            links.write_bytes(b'\0')
             with patch('arena.setup.enable_arena',lambda value:b'enabled launcher'):
-                backup = configure(data,'127.0.0.1')
-                self.assertIsNone(configure(data,'127.0.0.1'))
+                with self.assertRaises(ValueError):
+                    configure(data,'127.0.0.1',links)
+                self.assertEqual(config.read_bytes(),original)
+                self.assertEqual(game.read_bytes(),b'retail launcher')
+                links.write_bytes(bytes.fromhex('0000fc1f7b050000'))
+                backup = configure(data,'127.0.0.1',links)
+                self.assertIsNone(configure(data,'127.0.0.1',links))
+            installed_links = data / 'drives/c/system/apps/tombraider/adverts.dat'
+            self.assertEqual(installed_links.read_bytes(),links.read_bytes())
             settings = yaml.safe_load(config.read_text())
             self.assertEqual(settings['volume'],37)
             self.assertEqual(settings['hosts'],{'Example.Org':'192.0.2.1','arena.cng.n-gage.com':'127.0.0.1','discovery.cng.n-gage.com':'127.0.0.1'})
@@ -37,6 +46,7 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(commdb.read_bytes(),b'original database')
             self.assertFalse((data/'drives/e/game.id').exists())
             self.assertFalse((data/'drives/c/system/libs/abtesrv.dll').exists())
+            self.assertFalse(installed_links.exists())
 
     def test_unknown_launcher_is_not_patched(self):
         data = b'wrapper' + gzip.compress(b'unknown executable') + struct.pack('<I',7)

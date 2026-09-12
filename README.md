@@ -71,6 +71,15 @@ Players can also publish a guide directly from Director's Cut: choose **Upload â
 
 Director's Cut selects a section of the game's existing recording buffer. Press **#** during play, select a point before the end, activate **Record**, then activate **Stop** at the desired endpoint. In the tested controls, Left/Right selects a toolbar icon and Up activates it; numeric **5** confirms the Camera/Upload/Preview submenu. Select the first toolbar icon to jump to the start of the available recording before setting the start marker. Shadow Racing also uses the game's latched forward movement: pressing Down stops Lara's run.
 
+The game can show its **STRATEGY** icon inside a level and open a guide directory with the left softkey. After publishing a Caves guide, install the authored example below while EKA2L1 is stopped:
+
+```sh
+.venv/bin/python -m arena.admin author-guide-links examples/caves-guide-links.json data/caves-guide-links.dat
+.venv/bin/python -m arena.setup --data /absolute/path/to/Documents/data --guide-links data/caves-guide-links.dat
+```
+
+The JSON array describes level, room, inclusive `[xmin, zmin, xmax, zmax]` tile bounds relative to that room, and the destination directory. The example links Caves room 0 to its guide directory. The helper validates native limits and backs up any existing `adverts.dat`; restoring that setup backup reverses the installation. This is an authored local map, not Nokia's original guide data.
+
 Practice races do not award points. A downloaded challenge against another player awards **+10 for a win and -5 for a loss**, once per challenge. These are this server's rules, not a claim to reproduce Nokia's unpublished formula. A losing client may return its downloaded opponent recording; that file is retained for the outcome but never credited as the loser's personal best. Duplicate final submissions are idempotent. Monthly gold, silver, and bronze awards are computed from positive point totals in completed UTC calendar months.
 
 ## Development
