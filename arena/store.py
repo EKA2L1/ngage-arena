@@ -73,11 +73,13 @@ class Store:
         rows = [(900,1,0,'Fastest Finish'), (1401,1,0,'Strategy Guide'),
                 (1301,1,0,'Player Clips'), (501,1,0,'Messages'), (912,1,0,'League'),
                 (1202,1201,0,'Player clips'), (12002,1202,2,'Share clip'),
+                (1203,1201,0,'Strategy guide'),
                 (2001,1,0,'Monthly Trophies')]
         levels = ("Lara's Home",'Caves','City of Vilcabamba','Lost Valley','Tomb of Qualopec',
                   "St. Francis Folly",'Colosseum','Palace Midas','The Cistern','Tomb of Tihocan',
                   'City of Khamoon','Obelisk of Khamoon','Sanctuary of Scion',"Natla's Mines",'Atlantis','The Great Pyramid')
         rows.extend((1402+level,1401,0,name) for level,name in enumerate(levels))
+        rows.extend((3000+level,1203,2,name) for level,name in enumerate(levels))
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO messages(id,body,sender,created) VALUES(1,?,?,?)',
                 ('Welcome to Local Arena. Download a Caves practice race, share your own clips, or read the local strategy guides. League rules: win +10, loss -5.','Arena',time.time()))

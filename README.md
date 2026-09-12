@@ -65,6 +65,8 @@ The original Nokia service and its official downloadable content are not reprodu
 
 Director's Cut files contain a compressed game snapshot, input streams, and optional camera streams. Race files contain a course description, checksummed time, random seeds, and input streams. They are different formats and are validated separately. `author-course --help` describes how to create a course using an owned recording. Verify its generated time in the native game before importing it. Level 0 (Lara's Home) cannot be used as a race course because it lacks the crystal object required by the game.
 
+Players can also publish a guide directly from Director's Cut: choose **Upload → Strategy guide → level**, then enter a caption. That recording appears under the corresponding level in **Strategy Guide**. The **Player clips** upload category continues to publish to the general clip directory.
+
 Practice races do not award points. A downloaded challenge against another player awards **+10 for a win and -5 for a loss**, once per challenge. These are this server's rules, not a claim to reproduce Nokia's unpublished formula. A losing client may return its downloaded opponent recording; that file is retained for the outcome but never credited as the loser's personal best. Duplicate final submissions are idempotent. Monthly gold, silver, and bronze awards are computed from positive point totals in completed UTC calendar months.
 
 ## Development

@@ -223,7 +223,8 @@ class Arena(asyncio.DatagramProtocol):
             if content is not None:
                 if upload.kind == 1002:
                     read_clip(content)
-                    oid = self.store.add_content(1301,2222,upload.caption or 'Player recording',content,peer.user,
+                    parent = 1402 + upload.value2 - 3000 if 3000 <= upload.value2 < 3016 else 1301
+                    oid = self.store.add_content(parent,2222,upload.caption or 'Player recording',content,peer.user,
                         {'upload_type':upload.kind,'value1':upload.value1,'value2':upload.value2,'target':upload.target})
                 elif upload.kind == 1001:
                     oid = self.store.finish_race(peer.user,content,upload.caption)

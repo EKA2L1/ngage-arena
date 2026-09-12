@@ -199,5 +199,35 @@ class WireTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(outcome[3:5],(1,10))
         self.assertEqual(self.store.messages(opponent)[0]['body'],'Good race')
 
+    async def test_native_guide_upload_category(self):
+        await self.login()
+        self.send(9,struct.pack('<I',1203)+string(''))
+        page = await self.receive(124)
+        reader = Reader(page[7:])
+        categories = {}
+        for _ in range(page[0]):
+            fields = reader.unpack('IHHIIII')
+            categories[reader.string()] = fields[:2]
+            reader.string()
+        reader.finish()
+        category,kind = categories['Caves']
+        self.assertEqual(kind,2)
+        data = fixture_clip()
+        self.send(6,struct.pack('<HI',1002,len(data))+string('Caves route')+struct.pack('<II',0,category))
+        await self.receive(122)
+        for chunk in file_chunks(data):
+            total,start,end,size = struct.unpack_from('<4I',chunk)
+            self.send(8,struct.pack('<III',start,end,size)+chunk[16:])
+        await self.receive(123)
+        self.send(9,struct.pack('<I',1403)+string(''))
+        page = await self.receive(124)
+        reader = Reader(page[7:])
+        fields = reader.unpack('IHHIIII')
+        self.assertEqual(fields[1],2222)
+        self.assertEqual(reader.string(),'Caves route')
+        reader.string(); reader.finish()
+        self.assertEqual(self.store.content(fields[0]),data)
+        self.assertEqual(self.store.objects(1301),[])
+
 if __name__ == '__main__':
     unittest.main()

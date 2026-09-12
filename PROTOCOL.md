@@ -48,6 +48,8 @@ The client chooses its renderer by parent ID, independently of the displayed dir
 
 Challenge row 0 describes the opponent. Row 1 describes the current player and carries the course and downloadable opponent object IDs. Both rank strings must contain decimal digits; an empty string asserts in the native client. Result row 0 carries the uploaded time, cumulative monthly score and rank. Row 1 supplies the won/lost flag and absolute point delta. Negative scores are transmitted in the original 32-bit representation.
 
+The local upload catalogue uses parent 1202 for ordinary clips and 1203 for guides. Type-2 category leaves 3000–3015 name the guide levels. The client echoes the selected category ID in the upload's second `u32` value; the server routes those clips to parents 1402–1417. This was verified with a native Caves upload carrying values `1, 3001`, then downloaded from parent 1403.
+
 A message contains its body string, two type bytes, message ID, sender string and two `u32` values. Type 1 displays the welcome message; type 0 displays a challenge message with the native Revenge action. That action requests directory 915 with `sender,revenge`. The server restores the corresponding course from the latest completed winning challenge against the recipient, so revenge works after a fresh login.
 
 The client caches received and sent messages in a Symbian stream file. `logincookie.dat` is also a Symbian stream, not a plain C string: a native five-character nickname has a one-byte descriptor-length prefix followed by its five characters. The setup helper leaves account cookies and saved games alone.
