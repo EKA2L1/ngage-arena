@@ -87,6 +87,53 @@ class RankingTests(unittest.TestCase):
                     self.service.response(body, self.owner)
         self.assertEqual(self.accounts.db.execute('SELECT count(*) FROM ranking_reports').fetchone()[0], 0)
 
+    def test_native_positive_update_keeps_totals_and_event_boards_separate(self):
+        # Native reports from a locally edited save: Barracuda 2.5 kg and Costa Rica Classic 987.
+        fish_id, tournament_id = 3885652021, 3164354257
+        base = {'TOTAL_XP': 0, 'TOURNAMENT_SCORE': 0, 'FISH_WEIGHT': 0,
+                'LOCATION_ID': 378939982, 'TOURNAMENT_ID': 0, 'FISH_ID': 0}
+        reports = [dict(base, FISH_ID=fish_id, FISH_WEIGHT=640),
+                   dict(base, TOURNAMENT_ID=tournament_id, TOURNAMENT_SCORE=987),
+                   dict(base, TOTAL_XP=321), {'TOTAL_MASS': 1280}, {'TOTAL_ITEMS': 3}]
+        # After acknowledging journal events, the next native Update sends only the totals.
+        for query, values in enumerate(reports + reports[2:], start=1):
+            root = ET.fromstring(NATIVE_SUBMIT)
+            items = root.find('request/itemlist')
+            items.clear()
+            for key, value in {**values, '$version': 1, 'queryid': query}.items():
+                ET.SubElement(items, 'item', name=key, value=str(value))
+            reply = ET.fromstring(self.service.response(ET.tostring(root), self.owner))
+            self.assertEqual(reply.text.splitlines()[2].split('|')[1], str(query))
+
+        self.accounts.close()
+        self.accounts = AccountStore(self.directory.name)
+        self.service = RankingsService(self.accounts, default_games(self.accounts))
+        for stat, score, fish, tournament in [
+                ('TOTAL_XP', 321, 0, 0), ('TOTAL_MASS', 1280, 0, 0),
+                ('TOTAL_ITEMS', 3, 0, 0), ('FISH_WEIGHT', 640, fish_id, 0),
+                ('TOURNAMENT_SCORE', 987, 0, tournament_id),
+                ('FISH_WEIGHT', None, fish_id + 1, 0)]:
+            with self.subTest(stat=stat, fish=fish):
+                root = ET.fromstring(NATIVE_TOPN)
+                items = root.find('request/itemlist')
+                for item in list(items):
+                    if item.get('name') == 'stat':
+                        item.set('value', stat)
+                    if stat in ('TOTAL_MASS', 'TOTAL_ITEMS'):
+                        if item.get('name') == 'board':
+                            item.set('value', 'highscores')
+                        if item.get('name') == 'filters':
+                            items.remove(item)
+                    elif item.get('name') == 'filters':
+                        for entry in item[0]:
+                            if entry.get('name') == 'FISH_ID':
+                                entry.set('value', str(fish))
+                            if entry.get('name') == 'TOURNAMENT_ID':
+                                entry.set('value', str(tournament))
+                reply = ET.fromstring(self.service.response(ET.tostring(root), None))
+                self.assertEqual(reply.text.splitlines()[3:],
+                                 [] if score is None else [f'Angler|1|{score}|0'])
+
     def test_unknown_game_is_not_accepted_by_another_adapter(self):
         with self.assertRaises(UnsupportedRanking):
             self.service.response(NATIVE_SUBMIT.replace(b'58600', b'42318'), self.owner)

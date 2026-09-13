@@ -16,6 +16,22 @@ Qt and all three Android ABI builds passed; the core test process completed with
 
 The reviewed emulator changes are submitted in [upstream PR #709](https://github.com/EKA2L1/EKA2L1/pull/709), source `eee48639a`. Its selected implementation and patch binaries match the tested fork; unrelated fork JPEG dispatch/plugin changes are excluded. Upstream CI is separate from the local results above.
 
+## Hooked positive score uploads — 14 September 2026
+
+The final Release simulator executable above was reused on 5320 `rm-409`. The original Hooked game was entered through the online N-Gage Launcher and the normal `arena.runtime` service, using shared account `adgjmptw`. No debugger or runtime wrapper was attached. The user authorized local save editing; the complete ACE save was backed up before generating synthetic positive statistics and pending journal events. Game code and Arena leaderboard caches were unchanged.
+
+| Native upload and returned board | Observed result |
+| --- | --- |
+| Total XP | `TOTAL_XP=321`, native rank 1 with 321 XP |
+| Total weight | `TOTAL_MASS=1280`, native rank 1 with 5.0 kg |
+| Total items | `TOTAL_ITEMS=3`, native rank 1 with 3 |
+| Barracuda | `FISH_ID=3885652021`, `FISH_WEIGHT=640`, native rank 1 with 2.5 kg |
+| The Hooked On Costa Rica Classic | `TOURNAMENT_ID=3164354257`, `TOURNAMENT_SCORE=987`, native rank 1 with 987 |
+
+The first three positive reports persisted as records 19–21. A repeated native Update produced identical snapshots without increasing any board value. After restarting both the service and emulator, anonymous HTTP queries returned the same three totals without a cookie, and the Launcher logged in again. The game then loaded two synthetic unsent journal events and completed five native uploads (records 25–29), followed by its rankings page. A second Update sent only the three totals (30–32), demonstrating event acknowledgement. Normal Exit Game returned to Launcher and wrote both journal `AREN` flags as zero. Launching Hooked again through Launcher and updating sent only the three totals (33–35), with 321 XP still displayed. A final public HTTP check returned all five persisted personal bests.
+
+The targeted ranking suite passed 13 tests, and the complete service suite finished **119/119**. The added contract case covers positive values in every category, journal-event zeros, repeated total snapshots, separate fish filters, anonymous reads and database reopening. The native log contained no guest panic, access violation or graphics halt. Evidence, original saves, modified fixtures, persisted reports and board screenshots are under `data/verification/hooked-positive-2026-09-14/`; the fish-board video also captures the current-player highlight animation. This validates the upload/confirmation/persistence/leaderboard flow with edited saves; natural fishing and native friends are outside this check.
+
 ## Tomb Raider baseline
 
 The private service was exercised through the installed Tomb Raider game, GSB Arena UI and AirPlay client on N-Gage ROM `nem-4`, UID `0x101FBF9D`, in the iOS simulator. EKA2L1 used the final Release simulator build whose source matches fork commit `efb24fc9a` (base `167e5fd5252819fe4287cc3a91b55f3186f06c10` plus the general hosts and EKA1 networking changes). Debugger probes were detached and temporary emulator diagnostics removed before the final build and regression run.
