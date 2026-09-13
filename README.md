@@ -145,6 +145,14 @@ On N-Gage ROMs with no IAP, the updated emulator uses the native CommsDB API to 
 
 The final two-client check through `arena.runtime` verified movement, an attack leaving the same mortar at 47 HP on both displays, and automatic surrender settlement. Both result pages showed the same winner, 12 turns and 19:30 elapsed time. The service relays native actions; it does not implement the full game's simulation or authoritative CRC validation. General victory detection, ranked results, room-filter semantics and the remaining community features are unfinished. Earlier runs differed by one second in elapsed-time fields, so timing consistency is not established for every match. See [VALIDATION.md](VALIDATION.md) for the exact coverage.
 
+The content reader inspects an owned original ZIP or `data.pak` without extracting or modifying game files:
+
+```sh
+.venv/bin/python -m arena.highseize_content /absolute/path/to/High-Seize-v102.zip --verify > data/highseize-content.json
+```
+
+It validates the resource catalogue and reports each map's encoded unit/property placements, including IDs, owners and coordinates. `--verify` also decompresses every other resource. This supplies input for developing the authoritative battlefield; it does not enable victory detection in the running service. Terrain codes and the remaining NDL sections are available through the Python reader. Script execution, loaded-unit expansion and combat rules are not implemented by this reader. No game assets are included in this repository.
+
 ## Tomb Raider content and local rules
 
 The original Nokia service and its official downloadable content are not reproduced. A new database starts with directories and a welcome message. Import your own valid recordings and authored courses:
