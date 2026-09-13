@@ -22,6 +22,8 @@ Run commands from this directory. The default bind address is `127.0.0.1`; the d
 
 `arena.accounts.AccountStore` owns password authentication and device bindings in `community.sqlite3`. `arena.community.CommunityServer` implements SOAP sessions and XMPP; it delegates game requests through `arena.games.GameRegistry`. Ashen's score repository and High Seize's profile/battle adapter live under `arena.games`. A new game registers an adapter in `arena.runtime.default_games`; it must not create another password database. Game records reference the shared account ID. Tomb Raider retains its original local player IDs so recordings and challenge ownership remain stable, with `Store.account_id` resolving the shared identity.
 
+Profiles, friend subscriptions, presence and offline messages are shared services. `arena.messaging` stores contacts against account IDs and presents JIDs using each client's game domain. An N-Gage 2.0 adapter declares `app_uid` as well as `game_class`; the registry maps the Launcher's UID-only game history to the same achievement totals used by point boards. Client-uploaded profile point fields cannot replace earned totals.
+
 Stop existing services before upgrading. The first start takes a SQLite backup of an existing `ashen.sqlite3` into `community.sqlite3`, preserving account IDs, password verifiers, scores, and match records. The original database remains untouched and is no longer used by the service. Repeated starts do not import it again. Separate historical data directories are **not** merged by matching usernames.
 
 Tomb Raider sends a device identifier, not a password. Its existing or newly created players receive a separate device identity even if a password account has the same name. The local service operator can explicitly bind a player to a shared account:
@@ -91,7 +93,7 @@ hosts:
 
 Names are matched case-insensitively, with an optional final dot. Values may be IPv4 addresses, IPv6 addresses, or another hostname (without a URL scheme or port). A hostname target is resolved by the host operating system; mappings are applied once, so they do not form alias chains. Unlisted names continue through ordinary DNS. Edit these mappings in Settings → Host Overrides on iOS, Settings → Hosts on Android, or the Hosts tab of Qt Settings. All three editors use the same validation and preserve unrelated entries. With host TLS enabled, a hostname target also supplies the TLS server name and certificate identity; an IP target retains the original hostname. HTTP Host headers remain those sent by the guest, so a reverse proxy must also accept the original N-Gage service names. For an iOS simulator, localhost is the Mac's localhost. For a physical device, pass the Mac's reachable LAN IPv4 address with `--server` and bind the server to that interface.
 
-The required emulator changes are tracked in [EKA2L1 upstream PR #707](https://github.com/EKA2L1/EKA2L1/pull/707). The tested fork source is `efb24fc9a`; an older emulator without its EKA1 service fixes cannot connect just by adding the hosts entries.
+The initial networking changes merged through [EKA2L1 upstream PR #707](https://github.com/EKA2L1/EKA2L1/pull/707); the additional Arena, host TLS, access-point and rendering fixes are in [PR #709](https://github.com/EKA2L1/EKA2L1/pull/709). The final tested fork source is `56c3a2afe`. An older emulator without these service fixes cannot connect just by adding the hosts entries.
 
 Launch the N-Gage ROM (`nem-4`) and Tomb Raider, then choose **N-Gage Arena**. Choose a local nickname on first login. Changing the emulated device identity creates a separate local account; a nickname cannot be taken from another identity.
 
@@ -141,7 +143,7 @@ This backs up and edits only the emulator's host mappings and the Arena framewor
 
 On N-Gage ROMs with no IAP, the updated emulator uses the native CommsDB API to create a **Host network** access point and its legacy WAP associations. These are ordinary writable guest settings, created transactionally and retained across launches. Existing access points are preserved. No SDK database replacement is needed. Select **Host network** in the native Arena access-point list.
 
-The service relays native actions; it does not implement the full game's simulation or authoritative CRC validation. General victory detection, ranked results, room-filter semantics and the remaining community features are unfinished. Native elapsed-time fields differed by one second between clients. The prior movement/HP trial used diagnostic orchestration; those native checks still need repeating through the final service. See [VALIDATION.md](VALIDATION.md) for the exact coverage.
+The final two-client check through `arena.runtime` verified movement, an attack leaving the same mortar at 47 HP on both displays, and automatic surrender settlement. Both result pages showed the same winner, 12 turns and 19:30 elapsed time. The service relays native actions; it does not implement the full game's simulation or authoritative CRC validation. General victory detection, ranked results, room-filter semantics and the remaining community features are unfinished. Earlier runs differed by one second in elapsed-time fields, so timing consistency is not established for every match. See [VALIDATION.md](VALIDATION.md) for the exact coverage.
 
 ## Tomb Raider content and local rules
 

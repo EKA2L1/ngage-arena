@@ -64,10 +64,11 @@ def element(parent, name, value=None):
 
 
 class ProfileStore:
-    def __init__(self, accounts, clock=time.time):
+    def __init__(self, accounts, clock=time.time, point_totals=None):
         self.accounts = accounts
         self.db = accounts.db
         self.clock = clock
+        self.point_totals = point_totals
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS profiles (
                 user_id INTEGER PRIMARY KEY REFERENCES users(id),
@@ -126,11 +127,14 @@ class ProfileStore:
         return version
 
     def games(self, user):
-        return [json.loads(row['data']) for row in self.db.execute('SELECT data FROM profile_games WHERE user_id=? ORDER BY uid', (user,))]
+        result = [json.loads(row['data']) for row in self.db.execute('SELECT data FROM profile_games WHERE user_id=? ORDER BY uid', (user,))]
+        for game in result:
+            points = self.points(user, game_uid=game['uid'])
+            game.update(singlePlayerNGPs=points[0], multiPlayerNGPs=points[1])
+        return result
 
-    def points(self, user):
-        games = self.games(user)
-        return [sum(game.get(key, 0) for game in games) for key in ('singlePlayerNGPs', 'multiPlayerNGPs')] + [0]
+    def points(self, user, game_class=None, *, game_uid=None):
+        return self.point_totals(user, game_class, game_uid=game_uid) if self.point_totals else [0, 0, 0]
 
     def request_friend(self, sender, recipient):
         self.require_user(sender)

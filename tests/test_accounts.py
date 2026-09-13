@@ -50,11 +50,18 @@ class AccountTests(unittest.TestCase):
     def test_game_registration_does_not_change_common_authentication(self):
         class NewGame:
             game_class = 'new-game'
+            app_uid = 123
             def retrieve(self, user, node):
                 return str(user)
         games = GameRegistry([NewGame()])
+        self.assertEqual(games.for_uid(123).game_class, 'new-game')
+        self.assertIsNone(games.for_uid(456))
         with self.assertRaises(ValueError):
             GameRegistry([NewGame(), NewGame()])
+        class OtherGame(NewGame):
+            game_class = 'other-game'
+        with self.assertRaises(ValueError):
+            GameRegistry([NewGame(), OtherGame()])
         server = CommunityServer(self.accounts, games)
         server.soap_response(community('createUser', username='Shared', password='secret'))
         user = self.accounts.authenticate('shared', 'secret')
@@ -63,6 +70,15 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(ET.fromstring(server.snap_response(user, request)).findtext('retrieve/response'), str(user))
         self.assertIn('Login required', server.snap_response(None, request))
         self.assertIn('Unknown game', server.snap_response(user, leaderboard()))
+
+    def test_registered_game_points_reach_profiles_with_only_native_application_uid(self):
+        server = CommunityServer(self.accounts, default_games(self.accounts))
+        user = self.accounts.create_user('Angler', 'shared-secret')
+        server.achievements.response(b'<player userName="Angler"><commands g="58600"><add id="35" ts="20260913:141429.3"/></commands></player>', user)
+        server.profiles.store.update(user, {}, games=[{'uid': 0x2000AFBC}])
+        self.assertEqual(server.profiles.store.points(user), [0, 10, 0])
+        game = server.profiles.store.games(user)[0]
+        self.assertEqual((game['singlePlayerNGPs'], game['multiPlayerNGPs']), (0, 10))
 
     def test_legacy_database_migration_preserves_ids_credentials_and_game_rows(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -7,7 +7,13 @@ class GameRegistry:
         for game in games:
             if game.game_class in self.games:
                 raise ValueError('Duplicate game class: '+game.game_class)
+            uid = getattr(game, 'app_uid', None)
+            if uid is not None and self.for_uid(uid) is not None:
+                raise ValueError('Duplicate game UID: '+str(uid))
             self.games[game.game_class] = game
+
+    def for_uid(self, uid):
+        return next((game for game in self.games.values() if getattr(game, 'app_uid', None) == uid), None)
 
     def retrieve(self, user, node):
         game = self.games.get(node.get('game_class_id'))

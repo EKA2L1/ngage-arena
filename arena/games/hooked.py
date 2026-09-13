@@ -11,6 +11,7 @@ FILTERS = {'LOCATION_ID', 'TOURNAMENT_ID', 'FISH_ID'}
 
 class HookedGame:
     game_class = '58600'
+    app_uid = 0x2000AFBC
     achievement_points = dict(enumerate(
         [10]*8 + [15]*4 + [20]*4 + [25]*4 + [30] + [40]*4 + [45]*4
         + [50]*5 + [10, 20, 30], start=1))

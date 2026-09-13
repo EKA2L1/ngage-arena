@@ -36,10 +36,12 @@ class CommunityServer:
         self.clock = clock
         self.http_sessions = {}
         self.local_native_http = local_native_http
-        from arena.profiles import ProfileService, ProfileStore
-        self.profiles = ProfileService(ProfileStore(store))
         from arena.rankings import RankingsService
         self.rankings = RankingsService(store, games)
+        from arena.profiles import ProfileService, ProfileStore
+        self.profiles = ProfileService(ProfileStore(store, point_totals=self.rankings.points.totals))
+        from arena.messaging import Messaging
+        self.messaging = Messaging(self.profiles.store)
         from arena.achievements import AchievementService
         self.achievements = AchievementService(store, games)
 
@@ -244,11 +246,17 @@ class CommunityServer:
         parser = ET.XMLPullParser(events=('start', 'end'))
         depth = 0
         user = None
+        connection = None
+        domain = DOMAIN
         pending = 0
         previous = b''
         async def send(value):
-            writer.write(value.encode())
-            await writer.drain()
+            try:
+                writer.write(value.encode())
+                await asyncio.wait_for(writer.drain(), 10)
+            except (OSError, asyncio.TimeoutError):
+                writer.close()
+                raise
         try:
             while data := await asyncio.wait_for(reader.read(16384), 30 if user is None else None):
                 pending += len(data)
@@ -263,11 +271,20 @@ class CommunityServer:
                             root = node
                             if local(node.tag) != 'stream':
                                 raise ValueError('Expected XMPP stream')
+                            domain = node.get('to', DOMAIN)
+                            if not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', domain):
+                                raise ValueError('Invalid XMPP domain')
                             await send("<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='"+secrets.token_hex(8)+"' from='"+DOMAIN+"'>")
                         continue
                     if depth == 2:
                         self.record('XMPP', ET.tostring(node))
                         tag, identifier = local(node.tag), node.get('id', '')
+                        if node.get('type') == 'error' or (tag == 'iq' and node.get('type') == 'result'):
+                            root.remove(node)
+                            node.clear()
+                            pending = 0
+                            depth -= 1
+                            continue
                         if tag == 'iq':
                             query = next(iter(node), None)
                             if query is not None and query.tag == '{'+AUTH+'}query':
@@ -275,6 +292,9 @@ class CommunityServer:
                                 if node.get('type') == 'get':
                                     await send('<iq type="result" id='+quoteattr(identifier)+'><query xmlns="'+AUTH+'"><username>'+escape(params.get('username', ''))+'</username><password/><resource/></query></iq>')
                                 else:
+                                    if connection is not None:
+                                        await self.messaging.disconnect(connection)
+                                        connection = None
                                     self.snap_credentials.forget(writer)
                                     user = self.store.authenticate_snap(params.get('username', ''), params.get('password', ''))
                                     if user is None:
@@ -283,24 +303,40 @@ class CommunityServer:
                                         name = self.store.name(user)
                                         self.snap_credentials.remember(writer, user, name, params['password'],
                                                                        writer.get_extra_info('peername')[0])
+                                        connection = self.messaging.connect(user, domain, params.get('resource', 'segachat'), send)
                                         await send('<iq type="result" id='+quoteattr(identifier)+'/>')
                                         LOG.info('SNAP login completed for account %d', user)
                             elif user is None:
                                 await send('<iq type="error" id='+quoteattr(identifier)+'><error code="401">Unauthorized</error></iq>')
-                            elif query is not None and query.tag == '{jabber:iq:roster}query' and node.get('type') == 'get':
-                                await send('<iq type="result" id='+quoteattr(identifier)+'><query xmlns="jabber:iq:roster"/></iq>')
+                            elif query is not None and query.tag in ('{jabber:iq:roster}query', '{http://jabber.org/protocol/offline}query', '{http://jabber.org/protocol/disco#items}query'):
+                                try:
+                                    handler = self.messaging.roster if query.tag == '{jabber:iq:roster}query' else self.messaging.offline
+                                    await handler(connection, node, query)
+                                except (ValueError, LookupError, PermissionError) as error:
+                                    await send('<iq type="error" id='+quoteattr(identifier)+'><error code="400">'+escape(str(error))+'</error></iq>')
                             else:
                                 LOG.info('SNAP request %s to %s', identifier, node.get('to', ''))
                                 await send('<iq type="error" id='+quoteattr(identifier)+'><error code="501">Not implemented</error></iq>')
-                        elif tag == 'message':
-                            await send(self.snap_response(user, node))
+                        elif tag in ('presence', 'message'):
+                            if tag == 'message' and node.get('id') in ('segachat_retrieve_req', 'segachat_send_event'):
+                                await send(self.snap_response(user, node))
+                            else:
+                                try:
+                                    if connection is None:
+                                        raise PermissionError('Login required')
+                                    handler = self.messaging.presence if tag == 'presence' else self.messaging.message
+                                    await handler(connection, node)
+                                except (ValueError, LookupError, PermissionError) as error:
+                                    await send('<'+tag+' type="error" id='+quoteattr(identifier)+' from='+quoteattr(node.get('to', domain))+'><error code="400">'+escape(str(error))+'</error></'+tag+'>')
                         root.remove(node)
                         node.clear()
                         pending = 0
                     depth -= 1
-        except (ValueError, ET.ParseError, ConnectionError, TimeoutError) as error:
+        except (ValueError, ET.ParseError, OSError, asyncio.TimeoutError) as error:
             LOG.info('SNAP connection closed: %s', error)
         finally:
+            if connection is not None:
+                await self.messaging.disconnect(connection)
             self.snap_credentials.forget(writer)
             self.writers.discard(writer)
             self.tasks.discard(asyncio.current_task())

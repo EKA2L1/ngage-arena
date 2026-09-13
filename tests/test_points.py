@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 
 from arena.accounts import AccountStore
 from arena.achievements import AchievementService
+from arena.profiles import ProfileService, ProfileStore, SOAP, NGP
 from arena.rankings import RankingsService, UnsupportedRanking
 from arena.runtime import default_games
 
@@ -20,7 +21,7 @@ class PointBoardTests(unittest.TestCase):
         self.owner = self.accounts.create_user('Angler', 'native-test')
         self.peer = self.accounts.create_user('Peer', 'native-test')
         self.games = default_games(self.accounts)
-        self.games.games['123'] = SimpleNamespace(game_class='123',
+        self.games.games['123'] = SimpleNamespace(game_class='123', app_uid=123,
             achievement_points={1: 40}, achievement_types={1: 1})
         self.rankings = RankingsService(self.accounts, self.games)
         self.achievements = AchievementService(self.accounts, self.games)
@@ -70,6 +71,39 @@ class PointBoardTests(unittest.TestCase):
         self.assertEqual(self.rows(self.query('ngps', '58600', above='1', below='1')),
                          [['Peer', '1', '50', '0', '50', '0'],
                           ['Angler', '2', '0', '10', '10', '0']])
+
+    def test_profiles_and_friend_cards_use_earned_points_across_games_and_restart(self):
+        self.award(1)
+        self.award(35)
+        self.award(36)
+        self.award(1, game='123')
+        profiles = ProfileStore(self.accounts, point_totals=self.rankings.points.totals)
+        profiles.update(self.owner, {}, games=[
+            {'uid': 536915900, 'singlePlayerNGPs': 0, 'multiPlayerNGPs': 0},
+            {'uid': 123, 'classId': 123, 'singlePlayerNGPs': 99999, 'multiPlayerNGPs': 99999},
+            {'uid': 456, 'classId': 58600, 'singlePlayerNGPs': 99999, 'multiPlayerNGPs': 99999}])
+        profiles.request_friend(self.peer, self.owner)
+        profiles.accept_friend(self.owner, self.peer)
+        self.accounts.close()
+        self.accounts = AccountStore(self.directory.name)
+        self.rankings = RankingsService(self.accounts, self.games)
+        profiles = ProfileStore(self.accounts, point_totals=self.rankings.points.totals)
+        self.assertEqual(profiles.points(self.owner), [50, 30, 0])
+        self.assertEqual(profiles.points(self.peer), [0, 0, 0])
+        self.assertEqual(profiles.points(self.owner, 58600), [10, 30, 0])
+        games = {game['uid']: game for game in profiles.games(self.owner)}
+        self.assertEqual((games[536915900]['singlePlayerNGPs'], games[536915900]['multiPlayerNGPs']), (10, 30))
+        self.assertEqual((games[123]['singlePlayerNGPs'], games[123]['multiPlayerNGPs']), (40, 0))
+        self.assertEqual((games[456]['singlePlayerNGPs'], games[456]['multiPlayerNGPs']), (0, 0))
+        service = ProfileService(profiles)
+        body = (f'<s:Envelope xmlns:s="{SOAP}"><s:Body>'
+                f'<getFriendsMiniProfiles xmlns="{NGP}getfriendsminiprofiles">'
+                '<lastSyncDate>0001-01-01T00:00:00Z</lastSyncDate>'
+                '</getFriendsMiniProfiles></s:Body></s:Envelope>').encode()
+        card = ET.fromstring(service.response(body, self.peer)).find('.//miniProfile')
+        self.assertEqual(card.findtext('username'), 'Angler')
+        self.assertEqual([int(item.findtext('score')) for item in card.find('ngps')], [50, 30, 0])
+        self.assertEqual(self.rows(self.query()), [['Angler', '1', '50', '30', '0', '80', '0']])
 
     def test_public_zero_points_unknown_player_and_pagination(self):
         self.assertEqual(self.rows(self.query('ngps', '804')), [['Angler', '1', '0', '0', '0', '0']])

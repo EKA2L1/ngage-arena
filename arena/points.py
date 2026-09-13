@@ -8,6 +8,21 @@ from arena.rankings import UnsupportedRanking
 class PointBoards:
     def __init__(self, accounts, games):
         self.db = AchievementStore(accounts.db, games).db
+        self.games = games
+
+    def totals(self, user, game_class=None, *, game_uid=None):
+        if game_uid is not None:
+            game = self.games.for_uid(game_uid)
+            if game is None:
+                return [0, 0, 0]
+            game_class = game.game_class
+        condition = '' if game_class is None else ' AND game_class=?'
+        values = [user] if game_class is None else [user, str(game_class)]
+        row = self.db.execute('''SELECT
+            COALESCE(SUM(CASE WHEN ngp_type=1 THEN points ELSE 0 END),0),
+            COALESCE(SUM(CASE WHEN ngp_type=2 THEN points ELSE 0 END),0)
+            FROM achievements WHERE user_id=?'''+condition, values).fetchone()
+        return [row[0], row[1], 0]
 
     def response(self, request):
         params = request.params

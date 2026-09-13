@@ -89,7 +89,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(profile['firstName'], 'Marin')
         self.assertEqual(profile['alertSubscription'], [{'name': 'friends', 'subscribed': True}])
         self.assertEqual(profile['ignoreUsersList'], ['Blocked'])
-        self.assertEqual(self.store.points(self.owner), [35, 10, 0])
+        self.assertEqual(self.store.points(self.owner), [0, 0, 0])
         self.assertEqual(self.store.points(self.peer), [0, 0, 0])
         self.assertEqual(self.accounts.authenticate('Owner', 'native-test'), self.owner)
 
