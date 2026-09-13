@@ -1,5 +1,4 @@
 #include <e32base.h>
-#include <commdb.h>
 
 // AirPlay's billing plug-in uses a GCC 2.x vtable and export ordinal 1.
 struct ArenaBilling {
@@ -7,24 +6,7 @@ struct ArenaBilling {
     TBuf<72> host;
     TBuf8<17> version;
 };
-static void Initialize(ArenaBilling*) {
-    CCommsDatabase* db = CCommsDatabase::NewL(EDatabaseTypeIAP);
-    CleanupStack::PushL(db);
-    CCommsDbTableView* modem = db->OpenTableLC(_L("Modem"));
-    const TInt first = modem->GotoFirstRecord();
-    if (first == KErrNotFound) {
-        // AirPlay reads the first Modem row before asking ETel for the identity.
-        TUint32 id;
-        User::LeaveIfError(modem->InsertRecord(id));
-        modem->WriteTextL(_L("Name"), _L("Local Arena modem"));
-        modem->WriteTextL(_L("TSYName"), _L("NTRASTSY"));
-        User::LeaveIfError(modem->PutRecordChanges());
-    } else {
-        User::LeaveIfError(first);
-    }
-    CleanupStack::PopAndDestroy(modem);
-    CleanupStack::PopAndDestroy(db);
-}
+static void Initialize(ArenaBilling*) {}
 static void Reserved(ArenaBilling*) {}
 static void Complete(TRequestStatus& status, TInt result) {
     TRequestStatus* request = &status;

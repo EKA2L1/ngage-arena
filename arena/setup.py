@@ -16,6 +16,8 @@ from .hosts import host_target
 DISABLED_GSB = '5e08ad825522685b50b08381f33815b2b441aaecd4950861627374d705cb9c49'
 ENABLED_GSB = '4134cc9b01ba9cc19b3815a97964fc1bc744fc1bde77ef0bcc073be8bb839dcd'
 REPAIRED_GSB = 'f602a6abe1aa7e33bbe0152ef3925e0cdb144bf4819d67bbfafbf14a0f9d77bf'
+RETAIL_GSB = 'fd8cd499baa0c0415eead51ebda4a8028564ce6d6f6a3c162e8bdc1164cdbe22'
+REPAIRED_RETAIL_GSB = '8c03c5a1a49fbdeecd76f896928942448ee3fc920138cc0625863dd9ea85d911'
 ENTRY_OFFSET = 0x2878
 MESSAGE_OFFSET = 0x15db4
 MESSAGE_ORIGINAL = bytes.fromhex('10402de90040a0e10100a0e10210a0e10320a0e10130a0e302f9ffeb0400a0e1010000eb1040bde81eff2fe1')
@@ -30,16 +32,17 @@ def enable_arena(data):
         raise ValueError('GSBAPP.APP is not a supported compressed launcher')
     payload = gzip.decompress(data[offset:-4])
     digest = hashlib.sha256(payload).hexdigest()
-    if digest == REPAIRED_GSB:
+    if digest in (REPAIRED_GSB, REPAIRED_RETAIL_GSB):
         return data
-    if digest not in (DISABLED_GSB, ENABLED_GSB):
+    if digest not in (DISABLED_GSB, ENABLED_GSB, RETAIL_GSB):
         raise ValueError('Unknown GSBAPP.APP revision; refusing to patch it')
     if payload[MESSAGE_OFFSET:MESSAGE_OFFSET + len(MESSAGE_ORIGINAL)] != MESSAGE_ORIGINAL:
         raise ValueError('Message cache function does not match the supported revision')
     payload = payload[:ENTRY_OFFSET] + bytes.fromhex('30402de9') + payload[ENTRY_OFFSET + 4:]
     # The sent-message path must retain its cache even before the first inbox download.
     payload = payload[:MESSAGE_OFFSET] + MESSAGE_REPAIRED + payload[MESSAGE_OFFSET + len(MESSAGE_ORIGINAL):]
-    if hashlib.sha256(payload).hexdigest() != REPAIRED_GSB:
+    expected = REPAIRED_RETAIL_GSB if digest == RETAIL_GSB else REPAIRED_GSB
+    if hashlib.sha256(payload).hexdigest() != expected:
         raise ValueError('Patched launcher failed verification')
     return data[:offset] + gzip.compress(payload, mtime=0) + data[-4:]
 
@@ -90,13 +93,6 @@ def configure(data, address, guide_links=None):
             target = backup / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
-    # The local billing module may add the missing Modem row on first use.
-    for path in (data / 'drives/c/system/data').glob('*'):
-        if path.name.lower() == 'cdbv2.dat':
-            target = backup / path.relative_to(data)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
-            manifest['commdb_backup'] = str(path.relative_to(data))
     (backup / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     for path, content in changed.items():
         path.parent.mkdir(parents=True, exist_ok=True)

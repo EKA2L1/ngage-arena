@@ -183,8 +183,6 @@ class CommunityServer:
                 return
             if method != 'POST':
                 raise ValueError('Expected HTTP POST')
-            LOG.debug('Community framing length=%s transfer=%s expect=%s', values.get('content-length'),
-                      values.get('transfer-encoding'), values.get('expect'))
             size = int(values['content-length'])
             if not 0 < size <= 65536:
                 raise ValueError('Invalid request size')

@@ -39,11 +39,13 @@ class SetupTests(unittest.TestCase):
             settings = yaml.safe_load(config.read_text())
             self.assertEqual(settings['volume'],37)
             self.assertEqual(settings['hosts'],{'Example.Org':'192.0.2.1','arena.cng.n-gage.com':'127.0.0.1','discovery.cng.n-gage.com':'127.0.0.1'})
-            commdb.write_bytes(b'modified by billing module')
+            self.assertEqual(commdb.read_bytes(),b'original database')
+            self.assertNotIn('commdb_backup',json.loads((backup/'manifest.json').read_text()))
+            commdb.write_bytes(b'unrelated guest settings')
             restore(backup)
             self.assertEqual(config.read_bytes(),original)
             self.assertEqual(game.read_bytes(),b'retail launcher')
-            self.assertEqual(commdb.read_bytes(),b'original database')
+            self.assertEqual(commdb.read_bytes(),b'unrelated guest settings')
             self.assertFalse((data/'drives/e/game.id').exists())
             self.assertFalse((data/'drives/c/system/libs/abtesrv.dll').exists())
             self.assertFalse(installed_links.exists())
@@ -52,6 +54,17 @@ class SetupTests(unittest.TestCase):
         data = b'wrapper' + gzip.compress(b'unknown executable') + struct.pack('<I',7)
         with self.assertRaisesRegex(ValueError,'Unknown'):
             enable_arena(data)
+
+    def test_restore_supports_legacy_database_backups(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            backup = data/'arena-backups/legacy'
+            relative = 'drives/c/system/data/cdbv2.dat'
+            (backup/relative).parent.mkdir(parents=True)
+            (backup/relative).write_bytes(b'original database')
+            (backup/'manifest.json').write_text(json.dumps({'files':{},'commdb_backup':relative}))
+            restore(backup)
+            self.assertEqual((data/relative).read_bytes(),b'original database')
 
     def test_restore_rejects_paths_outside_backup(self):
         with tempfile.TemporaryDirectory() as directory:

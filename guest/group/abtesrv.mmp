@@ -4,6 +4,6 @@ UID 0x1000008d 0xe000a001
 SOURCEPATH ..
 SOURCE abtesrv.cpp
 SYSTEMINCLUDE \epoc32\include
-LIBRARY euser.lib commdb.lib
+LIBRARY euser.lib
 DEFFILE abtesrv.def
 NOSTRICTDEF

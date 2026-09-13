@@ -73,9 +73,13 @@ The helper:
 - Adds exact DNS overrides for `discovery.cng.n-gage.com` and `arena.cng.n-gage.com`.
 - Restores the disabled Arena entry point in the recognized game revision and repairs its sent-message cache initialization.
 - Installs the locally built billing-provider replacement and writes the game's identification file.
-- Saves every changed file and the original communications database in `data/arena-backups/<timestamp>/`.
+- Saves every changed file in `data/arena-backups/<timestamp>/`.
 
 It validates the complete decompressed game executable with SHA-256 before applying either client repair. Unknown revisions are rejected. Game executables are modified only in the user's installation and are not distributed by this project.
+
+The multilingual retail 1.0 launcher already exposes Arena; it only needs the same sent-message cache repair. Its import and protection data are preserved. Some archives also contain a duplicate `system/apps/tr` icon pointing at a truncated, 512-byte `tr.app`. If that duplicate is selected instead of `tombraider.app`, move the duplicate directory outside the guest installation before launching.
+
+The billing replacement does not edit CommsDB. On an N-Gage ROM without an access point, use an emulator build that provides **Host network** through the native CommsDB API. Older setup backups containing a communications database can still be restored.
 
 EKA2L1's `config.yml` must support this general hosts mapping:
 
@@ -127,13 +131,15 @@ To restore the installation, stop EKA2L1 and use `arena.ashen_setup --restore /a
 
 The service now handles native filtered rooms, commander/team setup, battle-message delivery, turn deadlines and surrender settlement. Two original 1.0.2 clients completed a two-player Blood Bay match, with matching winner, loser, turns and unit-loss counts. SQLite records the match, participants and ordered battle events, including server-generated Begin, End turn and End game. Repeated finish calls cannot replace an existing result.
 
-The development entry point is:
+Run the unified `arena.runtime` service described above. Stop EKA2L1 and configure the installed original multilingual 1.0.2 package:
 
 ```sh
-.venv/bin/python -m arena.ashen --http-port 8193 --snap-port 9090 --data data
+.venv/bin/python -m arena.highseize_setup --data /absolute/path/to/Documents/data
 ```
 
-It shares Community accounts and XMPP port 5222 with Ashen. The unified `arena.runtime` entry point serves both HTTP endpoints and the SNAP UDP listener in one process. The current High Seize installation still uses separately prepared framework configuration; a dedicated reversible setup helper remains unfinished. Do not run the older entry point alongside the unified runtime on the same ports.
+This backs up and edits only the emulator's host mappings and the Arena framework's HTTP endpoint configuration. It defaults to Community port 8193; use `--http-port 80` for a deployment serving the original port, and `--server private.example` for a hostname target. The game executable and bundled DLLs remain unchanged. Restore with `arena.highseize_setup --restore /absolute/path/to/data/arena-backups/TIMESTAMP`.
+
+On N-Gage ROMs with no IAP, the updated emulator uses the native CommsDB API to create a **Host network** access point and its legacy WAP associations. These are ordinary writable guest settings, created transactionally and retained across launches. Existing access points are preserved. No SDK database replacement is needed. Select **Host network** in the native Arena access-point list.
 
 The service relays native actions; it does not implement the full game's simulation or authoritative CRC validation. General victory detection, ranked results, room-filter semantics and the remaining community features are unfinished. Native elapsed-time fields differed by one second between clients. The prior movement/HP trial used diagnostic orchestration; those native checks still need repeating through the final service. See [VALIDATION.md](VALIDATION.md) for the exact coverage.
 
