@@ -148,10 +148,12 @@ The final two-client check through `arena.runtime` verified movement, an attack 
 The content reader inspects an owned original ZIP or `data.pak` without extracting or modifying game files:
 
 ```sh
-.venv/bin/python -m arena.highseize_content /absolute/path/to/High-Seize-v102.zip --verify > data/highseize-content.json
+.venv/bin/python -m arena.highseize_content /absolute/path/to/High-Seize-v102.zip --verify --rules > data/highseize-content.json
 ```
 
-It validates the resource catalogue and reports each map's encoded unit/property placements, including IDs, owners and coordinates. `--verify` also decompresses every other resource. This supplies input for developing the authoritative battlefield; it does not enable victory detection in the running service. Terrain codes and the remaining NDL sections are available through the Python reader. Script execution, loaded-unit expansion and combat rules are not implemented by this reader. No game assets are included in this repository.
+It validates the resource catalogue and reports each map's encoded unit/property placements, including IDs, owners and coordinates. `--verify` also decompresses every other resource; `--rules` includes the 21 unit definitions and their Q8 attack/defense tables, read from the owned package. This supplies input for developing the authoritative battlefield; it does not enable victory detection in the running service. Terrain codes and the remaining NDL sections are available through the Python reader. No game assets are included in this repository.
+
+`arena.highseize_rules` also provides the base two-unit combat calculation, including remaining-HP counterattacks, ammunition consumption and lost-unit costs. It reproduces the original decimal, fixed-point and single-precision rounding. It requires resolved tile bonuses and excludes commanders and abilities. It is not connected to the live relay: world validation, loaded-unit expansion, scripts and ordinary victory settlement remain unfinished.
 
 ## Tomb Raider content and local rules
 

@@ -8,6 +8,8 @@ import struct
 from zipfile import BadZipFile, ZipFile
 import zlib
 
+from arena.highseize_rules import read_units
+
 
 MAX_PACK_SIZE = 512 * 1024 * 1024
 MAX_RESOURCE_SIZE = 64 * 1024 * 1024
@@ -215,7 +217,7 @@ class Level:
                              for section in self.sections]}
 
 
-def inspect(pack, verify=False):
+def inspect(pack, verify=False, rules=False):
     names = pack.names()
     levels = {}
     for name in names:
@@ -225,17 +227,22 @@ def inspect(pack, verify=False):
                             **Level.decode(data).summary()}
         elif verify:
             pack.read(name)
-    return {'pack_sha256': hashlib.sha256(pack.data).hexdigest(),
-            'resources': len(names), 'verified_all_resources': verify, 'levels': levels}
+    result = {'pack_sha256': hashlib.sha256(pack.data).hexdigest(),
+              'resources': len(names), 'verified_all_resources': verify, 'levels': levels}
+    if rules:
+        result['units'] = [asdict(unit) for unit in
+                           read_units(pack.read('Data/Battle/ndUnitAttributes.ini'))]
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path, help='Owned data.pak or the original High Seize ZIP')
     parser.add_argument('--verify', action='store_true', help='Decompress and validate every resource')
+    parser.add_argument('--rules', action='store_true', help='Include unit attributes and Q8 combat tables')
     args = parser.parse_args()
     try:
-        result = inspect(FilePack.open(args.source), args.verify)
+        result = inspect(FilePack.open(args.source), args.verify, args.rules)
     except (OSError, ValueError, BadZipFile) as error:
         parser.exit(1, f'Content inspection failed: {error}\n')
     print(json.dumps(result, indent=2))
