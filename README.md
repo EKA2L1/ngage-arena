@@ -1,20 +1,64 @@
 # Local N-Gage Arena
 
-A local AirPlay server for the original N-Gage edition of **Tomb Raider**. It uses the game's native Arena screens and native replay files. It is independent of EKA2L1; the emulator only needs working EKA1 networking and a configurable DNS override.
+Local services for **Tomb Raider**, **Ashen**, and **High Seize**, with N-Gage 2.0 Launcher and **Hooked On: Creatures of the Deep** support under development. They use the games' native Arena screens and protocols. This project is independent of EKA2L1; the emulator needs working EKA1 networking and a configurable DNS override. High Seize has an experimental filtered-room service; its remaining limits are listed below.
 
-The service listens on UDP port **41001**. SQLite stores accounts, recordings, race results, challenge outcomes, messages, and monthly league points. Player identity is derived from the emulated device identity using a private HMAC key; raw device identifiers and passwords are not stored or logged.
+The Tomb Raider service listens on UDP port **41001**. SQLite stores accounts, recordings, race results, challenge outcomes, messages, and monthly league points. Player identity is derived from the emulated device identity using a private HMAC key; raw device identifiers and passwords are not stored or logged.
 
 ## Start the server
 
-Python 3.10 or newer is required. PyYAML is used by the installation helper; the server itself uses the standard library.
+Python 3.10 or newer is required. The installation helpers use PyYAML; High Seize authentication also uses PyCryptodome.
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m arena.server
+.venv/bin/python -m arena.runtime
 ```
 
-Run commands from this directory. The default bind address is `127.0.0.1`; the default database directory is `data/`. Preserve both `data/arena.sqlite3` and `data/identity.key` when backing up the service. Use `--host 0.0.0.0` only when intentionally serving other devices on a trusted local network.
+Run commands from this directory. The default bind address is `127.0.0.1`; the default database directory is `data/`. Back up the entire data directory while the service is stopped, including `community.sqlite3`, `arena.sqlite3`, and `identity.key`. Use `--host 0.0.0.0` only when intentionally serving other devices on a trusted local network.
+
+## Shared accounts and game modules
+
+`arena.runtime` starts Community HTTP (8192, 8193, 8194), XMPP (5222), SNAP UDP (9090), and Tomb Raider AirPlay UDP (41001). All listeners use the same `--data` directory. The older `arena.ashen` and `arena.server` entry points remain compatible, but must not run alongside the unified service on the same ports. Use `--airplay-port 0` to disable AirPlay, or repeat `--http-port` to select HTTP listeners.
+
+`arena.accounts.AccountStore` owns password authentication and device bindings in `community.sqlite3`. `arena.community.CommunityServer` implements SOAP sessions and XMPP; it delegates game requests through `arena.games.GameRegistry`. Ashen's score repository and High Seize's profile/battle adapter live under `arena.games`. A new game registers an adapter in `arena.runtime.default_games`; it must not create another password database. Game records reference the shared account ID. Tomb Raider retains its original local player IDs so recordings and challenge ownership remain stable, with `Store.account_id` resolving the shared identity.
+
+Stop existing services before upgrading. The first start takes a SQLite backup of an existing `ashen.sqlite3` into `community.sqlite3`, preserving account IDs, password verifiers, scores, and match records. The original database remains untouched and is no longer used by the service. Repeated starts do not import it again. Separate historical data directories are **not** merged by matching usernames.
+
+Tomb Raider sends a device identifier, not a password. Its existing or newly created players receive a separate device identity even if a password account has the same name. The local service operator can explicitly bind a player to a shared account:
+
+```sh
+.venv/bin/python -m arena.accounts --data data create Player
+.venv/bin/python -m arena.accounts --data data link-tomb 'Local player' --account Player
+```
+
+Both commands prompt for the account password. Binding requires access to the local service data and a valid password, preserves the Tomb Raider nickname and records, and refuses to transfer a device already linked to another account. Treat a linked emulator's device identity as an account credential. The same password account can authenticate through the legacy Community endpoint and `/ngi/axis/services/NGICommunity`.
+
+## N-Gage 2.0 development
+
+Use the **N-Gage Launcher** on the 5320 (`rm-409`) to enter games. Direct launching of the game UID skips the required launcher setup. With the emulator stopped, configure the installed launcher and Hooked On:
+
+```sh
+.venv/bin/python -m arena.ngage2_setup --data /absolute/path/to/Documents/data --game 2000afbc
+```
+
+The helper reads hostnames from the installed NAF configuration, adds EKA2L1 hosts entries, and sets NAF's configurable web-service port to 8194. It backs up every changed file; `--restore <backup>` restores them. Repeat `--game` for additional installed game UIDs. The game and launcher binaries are unchanged. This configures connectivity; it does not imply that all N-Gage 2.0 service operations are implemented.
+
+NAF uses HTTPS for account authentication even when its general Community URL uses HTTP. Serve both on port 8194 with a certificate whose subject alternative names include the configured service names:
+
+```sh
+.venv/bin/python -m arena.runtime --tls-port 8194 --tls-cert /absolute/path/to/server.pem --tls-key /absolute/path/to/server-key.pem
+.venv/bin/python -m arena.ngage2_setup --data /absolute/path/to/Documents/data --game 2000afbc --tls-ca /absolute/path/to/ca.pem
+```
+
+For native score and achievement uploads in this local simulator setup, add `--local-native-http` to the runtime command. This opt-in mode associates credential-free HTTP reports with an active SNAP login from the same loopback address. It trusts local processes, is disabled by default, and requires normal HTTP session credentials for remote writes. Public leaderboard reads do not require this option or a login.
+
+The second command requires an EKA2L1 build with host TLS support. It enables `host-tls`, copies the public PEM trust bundle to `tls/arena-ca.pem` under the emulator's data directory, and sets `tls-ca-file` to that relative path. For a self-signed development server, pass its public certificate as the CA. The helper rejects private keys and backs up both configuration and any previous trust bundle. The host verifies the certificate chain and hostname while negotiating TLS 1.2 or newer. No guest certificate-store changes are needed. Keep the server private key outside version control.
+
+The native Launcher has completed login over TLS 1.3, displayed its online indicator, uploaded game history, saved profile edits and downloaded server-side changes. Its original synchronization policy gives pending local edits precedence over server values until the local upload completes. Hooked On has entered its Costa Rica map from the online Launcher. Hooked On has completed its native Arena Update, including three score uploads and 64 leaderboard reads. Launcher displays the two earned Arena achievements as 30 multiplayer points, matching the shared account database. Ranking reads are public; uploads require an authenticated account association. Positive catch scores, native friend workflows and the remaining Arena features still need validation; this is not a completed N-Gage 2.0 service.
+
+Older emulator builds can leave a damaged NAF Central Repository cache: an empty login setting contains permission text such as ` 0 sid_rd`, causing `KErrOverflow` before login. With a build containing the corrected repository text parser, add `--reset-login rm-409` once to back up and reset that ROM's local NAF login preferences. This clears saved local credentials and login preferences; server accounts and game saves are retained. The same backup restore command restores these preferences too.
+
+On N-Gage 2.0 ROMs using CommsDat and lacking an access point, EKA2L1 provides a temporary **Host network** access point, including the WAP associations required by the launcher. Its records are supplied in memory and excluded from the persisted CommsDat repository. Existing guest access points are preserved. The setup helper does not modify the ROM or its access-point database.
 
 ## Connect EKA2L1
 
@@ -41,7 +85,7 @@ hosts:
   arena.cng.n-gage.com: 127.0.0.1
 ```
 
-Names are matched case-insensitively, with an optional final dot. Values are numeric IP addresses. Unlisted names continue through ordinary DNS. For an iOS simulator, localhost is the Mac's localhost. For a physical device, pass the Mac's reachable LAN IPv4 address with `--server` and bind the server to that interface.
+Names are matched case-insensitively, with an optional final dot. Values may be IPv4 addresses, IPv6 addresses, or another hostname (without a URL scheme or port). A hostname target is resolved by the host operating system; mappings are applied once, so they do not form alias chains. Unlisted names continue through ordinary DNS. Edit these mappings in Settings → Host Overrides on iOS, Settings → Hosts on Android, or the Hosts tab of Qt Settings. All three editors use the same validation and preserve unrelated entries. With host TLS enabled, a hostname target also supplies the TLS server name and certificate identity; an IP target retains the original hostname. HTTP Host headers remain those sent by the guest, so a reverse proxy must also accept the original N-Gage service names. For an iOS simulator, localhost is the Mac's localhost. For a physical device, pass the Mac's reachable LAN IPv4 address with `--server` and bind the server to that interface.
 
 The required emulator changes are tracked in [EKA2L1 upstream PR #707](https://github.com/EKA2L1/EKA2L1/pull/707). The tested fork source is `efb24fc9a`; an older emulator without its EKA1 service fixes cannot connect just by adding the hosts entries.
 
@@ -53,7 +97,47 @@ To undo installation changes, stop EKA2L1 and run:
 .venv/bin/python -m arena.setup --restore /absolute/path/to/data/arena-backups/TIMESTAMP
 ```
 
-## Content and local rules
+## Ashen
+
+Use the unified `arena.runtime` service described above. Ashen uses SNAP/XMPP on TCP **5222** for login, score submission and leaderboard retrieval. Its registration page uses Community SOAP on TCP **80**; expose that port through your deployment or reverse proxy to enable in-game registration. Keep `data/community.sqlite3` to preserve registered accounts and personal bests; the first run migrates an existing `data/ashen.sqlite3` without changing its contents. The database stores salted scrypt verifiers of the SDK login credential, rather than reusable passwords or raw device identifiers.
+
+Stop EKA2L1 and prepare an installed copy of Ashen:
+
+```sh
+.venv/bin/python -m arena.ashen_setup --data /absolute/path/to/Documents/data
+```
+
+Use the original multilingual Ashen 1.0.6 package, including its accompanying libraries. This revision needs no game patch: the helper only updates `config.yml`, backs it up under `arena-backups`, and leaves all executable, DLL and ROM files untouched. Copies with disabled Arena imports should be replaced with the original package. Pass `--server private.example` to use a hostname instead of the default loopback address.
+
+It preserves other DNS overrides and adds:
+
+```yaml
+hosts:
+  arena.n-gage.com: 127.0.0.1
+  im01.ashen.torus.sf.yav4.com: 127.0.0.1
+```
+
+Ashen additionally requires EKA2L1's Nifman progress, resolver hostname/address-length, and additional DLL search-path fixes. The hosts support merged in PR #707 alone is insufficient.
+
+Launch Ashen (`0x101FD3E9`) on ROM `nem-4`, enter **N-Gage Arena**, and log in with an existing shared account (or register when the Community service is available on port 80). **Send High Scores** uploads personal bests for eight chapters and the game total; **World Rankings** retrieves the selected leaderboard. Empty leaderboards stay empty until players submit scores. The service keeps each player's highest submitted score, with deterministic ordering for ties. It does not run the game's physics or validate earned scores.
+
+To restore the installation, stop EKA2L1 and use `arena.ashen_setup --restore /absolute/path/to/backup`. No game or SDK executable is distributed here. Native validation is tracked in [VALIDATION.md](VALIDATION.md).
+
+## High Seize (experimental)
+
+The service now handles native filtered rooms, commander/team setup, battle-message delivery, turn deadlines and surrender settlement. Two original 1.0.2 clients completed a two-player Blood Bay match, with matching winner, loser, turns and unit-loss counts. SQLite records the match, participants and ordered battle events, including server-generated Begin, End turn and End game. Repeated finish calls cannot replace an existing result.
+
+The development entry point is:
+
+```sh
+.venv/bin/python -m arena.ashen --http-port 8193 --snap-port 9090 --data data
+```
+
+It shares Community accounts and XMPP port 5222 with Ashen. The unified `arena.runtime` entry point serves both HTTP endpoints and the SNAP UDP listener in one process. The current High Seize installation still uses separately prepared framework configuration; a dedicated reversible setup helper remains unfinished. Do not run the older entry point alongside the unified runtime on the same ports.
+
+The service relays native actions; it does not implement the full game's simulation or authoritative CRC validation. General victory detection, ranked results, room-filter semantics and the remaining community features are unfinished. Native elapsed-time fields differed by one second between clients. The prior movement/HP trial used diagnostic orchestration; those native checks still need repeating through the final service. See [VALIDATION.md](VALIDATION.md) for the exact coverage.
+
+## Tomb Raider content and local rules
 
 The original Nokia service and its official downloadable content are not reproduced. A new database starts with directories and a welcome message. Import your own valid recordings and authored courses:
 

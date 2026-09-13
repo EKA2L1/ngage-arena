@@ -7,6 +7,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 
+from .accounts import AccountStore
 from .codec import Object
 from .replay import read_ghost
 
@@ -45,7 +46,7 @@ CREATE TABLE IF NOT EXISTS league_events (
 '''
 
 class Store:
-    def __init__(self, directory):
+    def __init__(self, directory, accounts=None):
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         key_path = directory / 'identity.key'
@@ -67,6 +68,10 @@ class Store:
                     self.db.execute(f'ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1')
                     if column == 'eligible':
                         self.db.execute('UPDATE race_results SET eligible=0 WHERE id IN (SELECT result_id FROM challenges WHERE race_results.milliseconds>=target_ms)')
+        self.accounts = accounts or AccountStore(directory)
+        self.owns_accounts = accounts is None
+        for row in self.db.execute('SELECT identity FROM users'):
+            self.accounts.register_identity('tomb-raider', row['identity'])
         self.seed()
 
     def seed(self):
@@ -103,7 +108,17 @@ class Store:
             else:
                 uid = self.db.execute('INSERT INTO users(name,identity,created) VALUES(?,?,?)',
                                       (name,digest,time.time())).lastrowid
+        self.accounts.register_identity('tomb-raider', digest)
         return 0, uid
+
+    def account_id(self, user):
+        row = self.db.execute('SELECT identity FROM users WHERE id=?', (user,)).fetchone()
+        return self.accounts.identity_account('tomb-raider', row['identity']) if row else None
+
+    def close(self):
+        self.db.close()
+        if self.owns_accounts:
+            self.accounts.close()
 
     def objects(self, parent):
         rows = self.db.execute('SELECT * FROM objects WHERE parent=? ORDER BY id', (parent,)).fetchall()

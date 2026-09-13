@@ -59,7 +59,7 @@ class RaceTests(unittest.TestCase):
             self.assertEqual(peer.race_id,8)
             self.assertEqual(rows[0].id,bob_record)
             self.assertEqual(rows[1].value3,8)
-            store.db.close()
+            store.close()
 
     def test_losing_reference_is_not_published_as_the_challengers_record(self):
         with tempfile.TemporaryDirectory() as path:
@@ -76,7 +76,7 @@ class RaceTests(unittest.TestCase):
             self.assertEqual(store.db.execute('SELECT points FROM league_events WHERE challenge_id=?',(challenge,)).fetchone()[0],-5)
             self.assertEqual(store.finish_race(bob,recording,''),result)
             self.assertEqual(store.db.execute('SELECT COUNT(*) FROM league_events').fetchone()[0],1)
-            store.db.close()
+            store.close()
 
     def test_challenge_rank_message_and_monthly_trophies(self):
         with tempfile.TemporaryDirectory() as path:
@@ -98,7 +98,7 @@ class RaceTests(unittest.TestCase):
             trophy, = store.trophies()
             self.assertEqual((trophy['name'],trophy['place'],trophy['points']),('Bob',1,10))
             self.assertIsNotNone(store.content(reference))
-            store.db.close()
+            store.close()
 
     def test_unpublished_or_changed_course_is_rejected(self):
         with tempfile.TemporaryDirectory() as path:
@@ -112,4 +112,4 @@ class RaceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.finish_race(user,bytes(changed),'Changed route')
             self.assertEqual(store.db.execute('SELECT COUNT(*) FROM race_results').fetchone()[0],0)
-            store.db.close()
+            store.close()

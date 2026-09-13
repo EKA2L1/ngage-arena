@@ -1,0 +1,125 @@
+"""Configure hosts for the installed N-Gage Launcher and selected N-Gage 2.0 games."""
+import argparse
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import re
+import ssl
+import yaml
+from arena.setup import restore
+from arena.hosts import host_target
+
+HOST_SETTINGS = {'WebServicesHostname', 'JabberFQDN', 'GameServerFQDN',
+                 'GroupChatFQDN', 'LegalPolicyHostName'}
+
+
+def configure(data, games, address='127.0.0.1', http_port=8194, reset_login=None, tls_ca=None):
+    data = Path(data).resolve()
+    address = host_target(address)
+    if not 1 <= http_port <= 65535:
+        raise ValueError('Invalid HTTP port')
+    if reset_login is not None and not re.fullmatch(r'[A-Za-z0-9_-]+', reset_login):
+        raise ValueError('Invalid ROM code')
+    updates = {}
+    ca_content = None
+    if tls_ca is not None:
+        ca_content = Path(tls_ca).read_bytes()
+        if len(ca_content) > 4 * 1024 * 1024 or b'PRIVATE KEY' in ca_content:
+            raise ValueError('Expected a public CA certificate bundle of at most 4 MiB')
+        ssl.create_default_context(cadata=ca_content.decode('ascii'))
+        target = data/'tls/arena-ca.pem'
+        if not target.exists() or target.read_bytes() != ca_content:
+            updates[target] = ca_content
+    if reset_login:
+        repository = data/'drives/c/private/10202be9/persists'/reset_login
+        for source in repository.glob('*'):
+            if source.name.lower() == '20001077.cre':
+                updates[source] = None
+    selected = {f'{int(game, 16):08x}' for game in games} | {'2000106c', '20007b39'}
+    domains = set()
+    for drive in ('c', 'e'):
+        for private in (data/'drives'/drive/'private').glob('*'):
+            if private.name.lower() not in selected:
+                continue
+            for source in private.rglob('*'):
+                if source.name.lower() != 'config.xml':
+                    continue
+                original = source.read_bytes().decode('utf-8')
+                # Some shipped configurations omit whitespace between XML attributes.
+                for name, value in re.findall(r'<nafSetting\s+name="([^"]+)"\s+value="([^"]+)"',
+                                              original):
+                    value = value.split(':', 1)[0]
+                    if name in HOST_SETTINGS and re.fullmatch(r'[A-Za-z0-9.-]+', value) and '.' in value:
+                        domains.add(value.lower().rstrip('.'))
+                rewritten = re.sub(r'(<nafSetting\s+name="WebServicesHostname"\s+value=")([^":]+)(?::[0-9]+)?(")',
+                                   lambda m: m[1]+m[2]+(':'+str(http_port) if http_port != 80 else '')+m[3], original)
+                if rewritten != original:
+                    updates[source] = rewritten.encode()
+    if not domains:
+        raise ValueError('No installed N-Gage 2.0 service configuration found')
+    config = data/'config.yml'
+    settings = yaml.safe_load(config.read_text())
+    if not isinstance(settings, dict) or not isinstance(settings.setdefault('hosts', {}), dict):
+        raise ValueError('Expected a config mapping with hostname-to-target hosts')
+    hosts = settings['hosts']
+    previous_hosts = dict(hosts)
+    tls_changed = False
+    if ca_content is not None:
+        tls_changed = settings.get('host-tls') is not True or settings.get('tls-ca-file') != 'tls/arena-ca.pem'
+        settings['host-tls'] = True
+        settings['tls-ca-file'] = 'tls/arena-ca.pem'
+    for host in list(hosts):
+        if str(host).lower().rstrip('.') in domains:
+            del hosts[host]
+    hosts.update({host: address for host in sorted(domains)})
+    content = yaml.safe_dump(settings, sort_keys=False).encode()
+    if hosts != previous_hosts or tls_changed:
+        updates[config] = content
+    if not updates:
+        return None
+    backup = data/'arena-backups'/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+    backup.mkdir(parents=True)
+    files = {}
+    for source in updates:
+        relative = str(source.relative_to(data))
+        destination = backup/relative
+        files[relative] = source.exists()
+        if source.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+    (backup/'manifest.json').write_text(json.dumps({'data': str(data), 'game': 'N-Gage 2.0',
+                                                 'files': files}, indent=2)+'\n')
+    for source, content in updates.items():
+        if content is None:
+            source.unlink()
+            continue
+        source.parent.mkdir(parents=True, exist_ok=True)
+        temporary = source.with_suffix('.arena-tmp')
+        temporary.write_bytes(content)
+        temporary.replace(source)
+    return backup
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--data', type=Path, help='EKA2L1 Documents/data; stop the emulator first')
+    group.add_argument('--restore', type=Path)
+    parser.add_argument('--game', action='append', default=[], help='Game UID in hexadecimal; repeat for more games')
+    parser.add_argument('--server', default='127.0.0.1')
+    parser.add_argument('--http-port', type=int, default=8194)
+    parser.add_argument('--reset-login', metavar='ROM', help='Back up and reset local NAF login preferences for a ROM, e.g. rm-409')
+    parser.add_argument('--tls-ca', type=Path, help='Public PEM CA bundle; enable host TLS and copy its trust anchor')
+    args = parser.parse_args()
+    try:
+        if args.restore:
+            restore(args.restore)
+        else:
+            backup = configure(args.data, args.game, args.server, args.http_port, args.reset_login, args.tls_ca)
+            print('Backup:', backup if backup else 'already configured')
+    except (OSError, ValueError) as error:
+        parser.exit(1, f'Setup failed: {error}\n')
+
+
+if __name__ == '__main__':
+    main()

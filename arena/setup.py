@@ -3,7 +3,6 @@ import argparse
 from datetime import datetime, timezone
 import gzip
 import hashlib
-import ipaddress
 import json
 from pathlib import Path
 import shutil
@@ -12,6 +11,7 @@ import struct
 import yaml
 
 from .guides import decode_links
+from .hosts import host_target
 
 DISABLED_GSB = '5e08ad825522685b50b08381f33815b2b441aaecd4950861627374d705cb9c49'
 ENABLED_GSB = '4134cc9b01ba9cc19b3815a97964fc1bc744fc1bde77ef0bcc073be8bb839dcd'
@@ -46,7 +46,7 @@ def enable_arena(data):
 
 def configure(data, address, guide_links=None):
     data = Path(data).resolve()
-    address = str(ipaddress.IPv4Address(address))
+    address = host_target(address)
     config = data / 'config.yml'
     game = data / 'drives/e/system/apps/tombraider/gsbapp.app'
     if not game.exists():
@@ -57,7 +57,7 @@ def configure(data, address, guide_links=None):
         raise ValueError('config.yml must contain a YAML mapping')
     hosts = settings.setdefault('hosts', {})
     if not isinstance(hosts, dict):
-        raise ValueError('hosts must be a hostname-to-IP mapping')
+        raise ValueError('hosts must be a hostname-to-target mapping')
     for host in ('discovery.cng.n-gage.com', 'arena.cng.n-gage.com'):
         for old in list(hosts):
             if str(old).lower().rstrip('.') == host:

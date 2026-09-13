@@ -80,13 +80,13 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(store.login('lara','device-two'),(3,None))
             self.assertEqual(store.login('Lara2','device-one'),(0,uid))
             oid = store.add_content(1301,2222,'Jump',b'replay',uid)
-            store.db.close()
+            store.close()
             store = Store(directory)
             self.assertEqual(store.login('Lara2','device-one'),(0,uid))
             self.assertEqual(store.content(oid),b'replay')
             identities = str(list(store.db.execute('SELECT identity FROM users')))
             self.assertNotIn('device-one',identities)
-            store.db.close()
+            store.close()
 
 class QueueClient(asyncio.DatagramProtocol):
     def __init__(self):
@@ -112,7 +112,7 @@ class WireTests(unittest.IsolatedAsyncioTestCase):
         self.client_transport.close()
         self.transport.close()
         await asyncio.sleep(0)
-        self.store.db.close()
+        self.store.close()
         self.directory.cleanup()
 
     def send(self, command, body=b''):

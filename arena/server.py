@@ -301,7 +301,7 @@ async def run(args):
         await asyncio.Future()
     finally:
         transport.close()
-        store.db.close()
+        store.close()
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

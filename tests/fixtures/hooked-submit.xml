@@ -1,0 +1,17 @@
+<rankings EventType="submit" source="jabber:Angler" name="Angler" response="no" debug="yes"
+ ClientTime="20060218175011" ServerTime="20060216175035">
+<request type="submit" response="no">
+<gameinfo gameclassid="58600" MatchId=""/>
+<playerlist> <player name="Angler"/> </playerlist>
+<itemlist>
+ <item  name="TOTAL_XP" value="0"/>
+ <item  name="TOURNAMENT_SCORE" value="0"/>
+ <item  name="FISH_WEIGHT" value="0"/>
+ <item  name="LOCATION_ID" value="378939982"/>
+ <item  name="TOURNAMENT_ID" value="0"/>
+ <item  name="FISH_ID" value="0"/>
+ <item  name="$version" value="1"/>
+ <item  name="queryid" value="5"/>
+</itemlist>
+		</request>
+</rankings>

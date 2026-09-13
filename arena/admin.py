@@ -77,7 +77,7 @@ def main():
     except (OSError,ValueError,ProtocolError,struct.error,KeyError,TypeError) as error:
         parser.exit(1,f'{error}\n')
     finally:
-        store.db.close()
+        store.close()
 
 
 if __name__ == '__main__':
