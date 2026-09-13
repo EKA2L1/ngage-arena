@@ -160,6 +160,7 @@ class HighSeizeServerTests(unittest.TestCase):
         wait = BattleMessage(BattleKind.WAIT, 2, 1, 0, False, 0xc44c9358, 0xc44c9358, struct.pack('<I', 3))
         self.battle(host, move)
         self.assertFalse(any(m.kind == BattleKind.ACCEPTED for m in self.battle_messages(host)))
+        self.assertFalse(any(m.kind == BattleKind.MOVE_UNIT for m in self.battle_messages(peer)))
         self.battle(host, wait)
         accepts = [struct.unpack('<I', m.payload)[0] for m in self.battle_messages(host) if m.kind == 21]
         self.assertEqual(accepts, [1, 2])
@@ -204,6 +205,94 @@ class HighSeizeServerTests(unittest.TestCase):
         self.send(peer, 7, flags=0xb000)
         self.assertFalse(self.application.rooms)
         self.assertFalse(self.application.memberships)
+
+    def preview(self, identifier=1, turn=0):
+        return BattleMessage(BattleKind.MOVE_UNIT, identifier, 1, turn, True, 0x38b32ca7, 0xc44c9358,
+                             bytes.fromhex('03000000020000000100000002000000020000000100000002000000'))
+
+    def test_undo_then_reselection_only_publishes_the_committed_move(self):
+        room = self.begin()
+        host, peer = self.peers
+        before = self.battle_messages(peer)
+        self.battle(host, self.preview())
+        self.battle(host, BattleMessage(BattleKind.UNDO, 2, 1, 0))
+        self.assertEqual(self.battle_messages(peer), before)
+        self.assertFalse(room.moves)
+        self.battle(host, self.preview(3))
+        self.battle(host, BattleMessage(BattleKind.WAIT, 4, 1, 0, payload=struct.pack('<I', 3)))
+        self.assertEqual([(m.kind, m.identifier) for m in self.battle_messages(peer)[len(before):]], [(0, 3), (5, 4)])
+        self.assertEqual([tuple(r) for r in self.store.db.execute(
+            'SELECT message_id,state FROM hs_events WHERE source=1 AND kind=0 ORDER BY ordinal')],
+            [(1, 'undone'), (3, 'accepted')])
+
+    def test_timeout_discards_preview_and_allows_movement_on_the_next_turn(self):
+        room = self.begin()
+        host, peer = self.peers
+        room.settings = replace(room.settings, turn_time=10)
+        self.application.turn_deadline(room, self.now)
+        self.battle(host, self.preview())
+        self.now += 10
+        self.server.tick()
+        self.drain()
+        self.assertFalse(room.moves)
+        self.assertEqual((room.turn, room.active), (1, 2))
+        self.assertFalse(any(m.kind == BattleKind.MOVE_UNIT for m in self.battle_messages(peer)))
+        self.battle(host, BattleMessage(BattleKind.WAIT, 2, 1, 0, payload=struct.pack('<I', 3)))
+        self.assertEqual(self.battle_messages(host)[-1].kind, BattleKind.REJECTED)
+        self.battle(peer, BattleMessage(BattleKind.END_TURN, 1, 2, 1))
+        self.battle(host, self.preview(3, 2))
+        self.battle(host, BattleMessage(BattleKind.WAIT, 4, 1, 2, payload=struct.pack('<I', 3)))
+        moves = [m for m in self.battle_messages(peer) if m.kind == BattleKind.MOVE_UNIT]
+        self.assertEqual(moves, [self.preview(3, 2)])
+        self.assertFalse(room.moves)
+
+    def test_manual_end_turn_discards_preview(self):
+        room = self.begin()
+        host, peer = self.peers
+        self.battle(host, self.preview())
+        self.battle(host, BattleMessage(BattleKind.END_TURN, 2, 1, 0))
+        self.assertFalse(room.moves)
+        self.assertEqual((room.turn, room.active), (1, 2))
+        self.assertFalse(any(m.kind == BattleKind.MOVE_UNIT for m in self.battle_messages(peer)))
+        self.assertEqual(self.store.db.execute('SELECT state FROM hs_events WHERE kind=0').fetchone()[0], 'undone')
+
+    def test_move_without_tentative_flag_is_committed_immediately(self):
+        room = self.begin()
+        host, peer = self.peers
+        move = replace(self.preview(), flag=False)
+        self.battle(host, move)
+        self.assertFalse(room.moves)
+        self.assertEqual(self.battle_messages(peer)[-1], move)
+        self.assertEqual(self.battle_messages(host)[-1].kind, BattleKind.ACCEPTED)
+        self.assertEqual(self.store.db.execute('SELECT state FROM hs_events WHERE kind=0').fetchone()[0], 'accepted')
+
+    def test_surrender_does_not_publish_a_tentative_move(self):
+        room = self.begin()
+        host, peer = self.peers
+        self.battle(host, self.preview())
+        self.battle(host, BattleMessage(BattleKind.SURRENDER, 2, 1, 0))
+        self.now += 3
+        self.server.tick()
+        self.drain()
+        self.assertEqual(room.phase, 'finished')
+        self.assertFalse(room.moves)
+        self.assertFalse(any(m.kind == BattleKind.MOVE_UNIT for m in self.battle_messages(peer)))
+        self.assertEqual(self.store.db.execute('SELECT state FROM hs_events WHERE kind=0').fetchone()[0], 'undone')
+        self.assertEqual(self.store.db.execute('SELECT winner_team FROM hs_matches').fetchone()[0], 1)
+
+    def test_departure_and_recovery_discard_uncommitted_moves(self):
+        room = self.begin()
+        host, peer = self.peers
+        self.battle(host, self.preview())
+        self.send(host, 7, flags=0xb000)
+        self.assertFalse(room.moves)
+        self.assertFalse(any(m.kind == BattleKind.MOVE_UNIT for m in self.battle_messages(peer)))
+        self.assertEqual(self.store.db.execute('SELECT state FROM hs_events WHERE kind=0').fetchone()[0], 'undone')
+        for finish in (lambda match: self.store.finish(match, None, 'server shutdown'), lambda match: self.store.recover()):
+            match = self.store.start(room.settings, room.members.values())
+            self.store.event(match, self.preview(), 0, 'pending')
+            finish(match)
+            self.assertEqual(self.store.db.execute('SELECT state FROM hs_events WHERE match_id=?', (match,)).fetchone()[0], 'undone')
 
     def test_spoofed_source_and_wrong_turn_do_not_change_match(self):
         room = self.begin()

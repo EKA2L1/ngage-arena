@@ -36,6 +36,8 @@ class HighSeizeStore:
 
     def recover(self):
         with self.db:
+            self.db.execute("""UPDATE hs_events SET state='undone' WHERE state='pending'
+                AND match_id IN (SELECT id FROM hs_matches WHERE ended IS NULL)""")
             self.db.execute("UPDATE hs_matches SET ended=?,reason='server restart' WHERE ended IS NULL",
                             (self.clock(),))
 
@@ -66,6 +68,8 @@ class HighSeizeStore:
             if changed and winner is not None:
                 self.db.execute("UPDATE hs_players SET outcome=CASE WHEN team=? THEN 'win' ELSE 'loss' END WHERE match_id=?",
                                 (winner, match))
+            if changed:
+                self.db.execute("UPDATE hs_events SET state='undone' WHERE match_id=? AND state='pending'", (match,))
         return bool(changed)
 
     def profile(self, name):
@@ -388,12 +392,13 @@ class HighSeizeArena:
             return
         if member.slot != room.active or kind >= BattleKind.ACCEPTED and kind != BattleKind.BREAK_ALLIANCE:
             raise ValueError('Unexpected client battle action')
-        if kind in (BattleKind.END_TURN, BattleKind.SURRENDER) and message.payload:
+        if kind in (BattleKind.END_TURN, BattleKind.SURRENDER, BattleKind.UNDO) and message.payload:
             raise ValueError('Unexpected action payload')
+        tentative = kind == BattleKind.MOVE_UNIT and message.flag
         if kind == BattleKind.MOVE_UNIT:
             if len(message.payload) < 12 or len(message.payload) != 12 + 8 * struct.unpack_from('<I', message.payload, 4)[0]:
                 raise ValueError('Invalid move path')
-            if member.slot in room.moves:
+            if tentative and member.slot in room.moves:
                 raise ValueError('Uncommitted move already exists')
         if kind == BattleKind.ATTACK_UNIT and len(message.payload) != 8:
             raise ValueError('Invalid unit attack')
@@ -401,22 +406,25 @@ class HighSeizeArena:
             raise ValueError('Invalid wait action')
         member.last_message = message.identifier
         self.store.event(room.match, message, now - room.started,
-                         'pending' if kind == BattleKind.MOVE_UNIT else 'accepted')
+                         'pending' if tentative else 'accepted')
         if kind == BattleKind.END_TURN:
             self.end_turn(room, now)
             return
-        self.broadcast(room, message.packet(), member.peer)
-        if kind == BattleKind.MOVE_UNIT:
+        if tentative:
             room.moves[member.slot] = message
-        elif kind == BattleKind.UNDO:
-            move = room.moves.pop(member.slot, None)
-            if move:
-                self.store.mark(room.match, move, 'undone')
+            return
+        if kind == BattleKind.UNDO:
+            self.discard_move(room, member.slot)
+            return
+        if kind == BattleKind.SURRENDER:
+            self.discard_move(room, member.slot)
         else:
             move = room.moves.pop(member.slot, None)
             if move:
+                self.broadcast(room, move.packet(), member.peer)
                 self.accept(room, member, move)
-            self.accept(room, member, message)
+        self.broadcast(room, message.packet(), member.peer)
+        self.accept(room, member, message)
         if kind == BattleKind.SURRENDER:
             member.defeated = True
             self.check_finish(room, now, 'surrender')
@@ -425,7 +433,13 @@ class HighSeizeArena:
         room.deadline = (None if room.settings.turn_time == 0xffffffff
                          else now + max(1, room.settings.turn_time))
 
+    def discard_move(self, room, slot):
+        move = room.moves.pop(slot, None)
+        if move:
+            self.store.mark(room.match, move, 'undone')
+
     def end_turn(self, room, now):
+        self.discard_move(room, room.active)
         self.battle_event(room, BattleKind.END_TURN)
         slots = sorted(m.slot for m in room.members.values() if not m.defeated)
         if not slots:
@@ -452,6 +466,7 @@ class HighSeizeArena:
         member = room.members[peer]
         member.attached = False
         if room.phase == 'battle':
+            self.discard_move(room, member.slot)
             member.defeated = True
             message = BattleMessage(BattleKind.END_GAME, member.last_message + 1,
                                     member.slot, room.turn, payload=WORD.pack(0))

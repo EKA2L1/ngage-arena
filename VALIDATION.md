@@ -46,6 +46,12 @@ All **138 service tests** completed successfully with the final code. Added cove
 
 Native chat-body display, removal/rejection and the corrected friend-point display remain pending until the Mac is unlocked. The successful invitation and transport checks do not establish those remaining UI paths.
 
+## High Seize tentative movement review — 14 September 2026
+
+Static analysis of the supplied unmodified `6r36.app` (SHA-256 `f2bfddf428e320ab33f2e2da89fe2d2ee25766bf8fa7dd8db6b73fb457b6b613`) exposed premature forwarding of tentative movement and a stale pending move after turn expiry. The service now holds tentative moves until the committing action, drops cancelled previews, and clears them when the turn or match ends. A flag-0 move remains immediate. This changes the service's battle path; the earlier native movement/HP pass does not validate this new ordering.
+
+The focused transport/battle suite passed 18 tests and the complete service suite passed **144/144**. New cases cover Undo followed by reselection, timeout followed by a valid move on the next turn, manual End turn, immediate movement, surrender while a preview is pending, departure, shutdown and recovery. Native preview/cancel/timeout checks and a committed move/attack/finish control are pending because the Mac remains locked. The same analysis confirmed that normal victory completion and fog-path exceptions depend on authoritative world state that the current service does not yet implement. Binary ranges, test logs and source hashes are recorded under `data/verification/highseize/preview-2026-09-14/`.
+
 ## Tomb Raider baseline
 
 The private service was exercised through the installed Tomb Raider game, GSB Arena UI and AirPlay client on N-Gage ROM `nem-4`, UID `0x101FBF9D`, in the iOS simulator. EKA2L1 used the final Release simulator build whose source matches fork commit `efb24fc9a` (base `167e5fd5252819fe4287cc3a91b55f3186f06c10` plus the general hosts and EKA1 networking changes). Debugger probes were detached and temporary emulator diagnostics removed before the final build and regression run.
