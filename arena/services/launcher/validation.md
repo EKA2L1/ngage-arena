@@ -48,3 +48,13 @@ This trial used no guest code, account, friendship or credential-file edits. The
 With the local HTTP 80 relay restored, the original Launcher completed the same flow on Release SHA-256 `e1fcb231bf68fbce3cc3c83a0b0e2ea05ced50ba0a186e3c071240d63c309c9b` (native host process 73244). Both repository text files and both persisted repositories matched their original backups before and after the run. Rankings used `http://playapps.ngage.mobi/rankings.html`; Store used the original `http://showroom.n-gage.com/sh/output/` resources. No application URL or guest binary was changed.
 
 While offline, Store → Update Now downloaded all four resources, displayed the private catalogue, and opened its public ranking link with the shared 30 / 10 point totals. After normal HTTPS login, My Profile → Hooked → Rankings made another live GET and displayed the same totals with the current player highlighted. The native log had no guest panic, access violation, graphics halt or unhandled opcode. This closes the earlier temporary-port validation gap. Screenshots, repository hashes and the bounded server log are in `data/verification/launcher-http80-2026-09-15/`.
+
+## Key screenshots
+
+| Native result, 15 September 2026 | Screenshot |
+| --- | --- |
+| Explicit reconnect after reopening Launcher, using its saved password; green online indicator | [Reconnected home](screenshots/2026-09-15-saved-password-reconnect.jpg) |
+| Accepted friend and 30 shared points retained after ordinary-server reconnect | [Friends](screenshots/2026-09-15-friends-after-reconnect.jpg) |
+| Live signed-in Hooked web rankings on the original HTTP 80 URL; current player highlighted, 30 / 10 points | [Rankings](screenshots/2026-09-15-signed-in-hooked-ranking.jpg) |
+
+These unedited screenshots show the native result states. The server trace and repository hashes described above establish the reconnect requests and unchanged original URLs. Store download and offline public ranking screenshots belong to [catalogue validation](../catalogue/validation.md#key-screenshots).

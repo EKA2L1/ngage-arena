@@ -21,3 +21,12 @@ The private service was exercised through the installed Tomb Raider game, GSB Ar
 The separate live “mentor Lara” and native offline library for reopening downloaded guides after a restart described by historical accounts remain unverified and are not claimed as restored. Official downloadable courses and walkthroughs are not included. The imported clips and reference races in this local database are demonstration content, not a complete game walkthrough.
 
 The multilingual retail 1.0 Arena retest on 14 September 2026 completed authentication, directory browsing, recording download/playback and a 701 ms practice result; reauthentication returned the persisted time. See [shared emulator validation](../../../docs/emulator-validation.md).
+
+## Native screenshots
+
+These original captures distinguish the 14 September retail retest from the earlier baseline flows described above.
+
+- [Retail practice result](./screenshots/practice-result-701ms.jpg): 0.701 seconds and zero points.
+- [Persisted practice score after reauthentication](./screenshots/persisted-practice-score.jpg): the final Release check retrieved the same 0.701-second score.
+- [Baseline revenge result](./screenshots/baseline-revenge-result.jpg): 2.490 seconds, +10 points for the win and cumulative score 5.
+- [Baseline strategy-guide playback](./screenshots/baseline-strategy-playback.jpg): the downloaded Caves recording in the native player, with playback controls visible. This image does not establish an offline library or a separate mentor Lara.

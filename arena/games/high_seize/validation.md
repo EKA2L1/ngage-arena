@@ -4,7 +4,7 @@
 
 Static analysis of the supplied unmodified `6r36.app` (SHA-256 `f2bfddf428e320ab33f2e2da89fe2d2ee25766bf8fa7dd8db6b73fb457b6b613`) exposed premature forwarding of tentative movement and a stale pending move after turn expiry. The service now holds tentative moves until the committing action, drops cancelled previews, and clears them when the turn or match ends. A flag-0 move remains immediate. This changes the service's battle path; the earlier native movement/HP pass does not validate this new ordering.
 
-The focused transport/battle suite passed 18 tests and the complete service suite passed **144/144**. New cases cover Undo followed by reselection, timeout followed by a valid move on the next turn, manual End turn, immediate movement, surrender while a preview is pending, departure, shutdown and recovery. Native preview/cancel/timeout checks and a committed move/attack/finish control are pending. The same analysis confirmed that normal victory completion and fog-path exceptions depend on authoritative world state that the current service does not yet implement. Binary ranges, test logs and source hashes are recorded under `data/verification/highseize/preview-2026-09-14/`.
+The focused transport/battle suite passed 18 tests and the complete service suite passed **144/144**. New cases cover Undo followed by reselection, timeout followed by a valid move on the next turn, manual End turn, immediate movement, surrender while a preview is pending, departure, shutdown and recovery. Native preview/cancel/timeout checks and a committed move/attack/finish control were pending at this stage; the 15 September follow-ups below cover those paths. The same analysis confirmed that normal victory completion and fog-path exceptions depend on authoritative world state that the current service does not yet implement. Binary ranges, test logs and source hashes are recorded under `data/verification/highseize/preview-2026-09-14/`.
 
 ## High Seize content reader — 14 September 2026
 
@@ -51,7 +51,7 @@ A first completed diagnostic match used the host's global End current game menu.
 
 ### Two-client combat and native surrender
 
-A fresh MPS1 match passed the following checks on the same Release simulator build, source `582677663` plus the current shared networking/window working tree. The executable SHA-256 is `dc9dfdee9e878a70c23603b4e3b4f13d7a5e54992999e1123a0360cce0b29406`. Both clients used the supplied unmodified High Seize package and the native unlimited-turn setting. Debugger access only read guest state; no coordinate, HP or guest code writes were used.
+A fresh MPS1 match passed the following checks on the same Release simulator build, source `582677663` plus the current shared networking/window working tree. The executable SHA-256 is `dc9dfdee9e878a70c23603b4e3b4f13d7a5e54992999e1123a0360cce0b29406`. Both clients used the supplied unmodified High Seize package. This diagnostic run recorded an unlimited turn setting, but its selection path was not established: the original Arena Create Room table permits only 30, 40, 50, 60, 70, 80 and 90 seconds. Unlimited belongs to a separate Mission settings dialog. The later production validation uses the original Arena selector. Debugger access only read guest state; no coordinate, HP or guest code writes were used.
 
 | Check | Observed result |
 | --- | --- |
@@ -80,3 +80,33 @@ SQLite contains one completed match with winner team zero, exactly two participa
 Reliable delivery now starts at sequence zero, retries identical packets and queues events in order. A reliable no-op keeps idle lobby sessions alive; the native clients acknowledged it repeatedly. The first dedicated-game heartbeat follows attachment completion in the same reliable queue. Sending it unreliably before the queued completion had caused a native connection timeout; the corrected ordering reached commander/team setup and the completed match.
 
 All 72 private-service tests passed with the final functional changes. Local evidence is under `data/verification/highseize/production-2026-09-13/`: sanitized match/event rows, source hashes, peer result screenshots, service log, test log and native log scan. Host result images are in the task's computer-use outputs because new simulator IO capture connections stalled; the existing Simulator window remained interactive. This pass covers integrated setup and surrender persistence. It does not replace the earlier diagnostic coordinate/HP trial, final three-game emulator regression, ranked validation or general battle-outcome detection.
+
+## Native preview, commander and surrender follow-up — 15 September 2026
+
+Two original 1.0.2 clients ran on the final Release executable SHA-256 `e1fcb231bf68fbce3cc3c83a0b0e2ea05ced50ba0a186e3c071240d63c309c9b` with the ordinary private server (`f286c21`, unchanged battle implementation). Match 3 used MPS1/Blood Bay, 70-second turns and no fog. The existing eight-character account and a separate seven-character test account exchanged native Commander records of 1,028 and 1,027 bytes. Both clients displayed the correct names/teams and entered the battle; the exact records were persisted. No game or ROM code was changed.
+
+The actor could preview a move, cancel it and reselect its destination. The native client sent no MOVE or UNDO to the server during those UI previews. Confirming Wait then sent a flag-1 MOVE followed by WAIT; both were accepted in order. Sword 3 committed `(2,2) → (1,2)` after cancellation/reselection, and Sword 4 committed `(7,2) → (6,2)`. Both native views retained the committed positions after the turn changed. A preview left through the turn deadline rolled back without changing the peer. Later attack previews also expired before confirmation; no ATTACK reached the service and no damage occurred. This establishes the native UI paths and committed movement ordering, not native server-held Undo traffic or the pending HP checkpoint.
+
+Native peer Surrender produced Mission successful on the host and Mission failed on the peer. Both result sequences named the same winner/loser, showed 5/5 turns, zero winner losses, seven loser losses, and zero other resource/property/construction/destruction counters. Loser used time agreed at 10:56; the host total/winner-used time was 10:59 while the peer reported 11:00. The one-second elapsed-time discrepancy therefore remains open. Both clients returned to Choose Mode normally. SQLite contains one completed match, two correct outcomes, exactly one surrender event and no pending rows. Neither native log contained a guest panic, access violation, graphics halt or unhandled opcode. Evidence is in `data/verification/highseize/preview-native-2026-09-15/match-3/`.
+
+## Native committed attack and finish — 15 September 2026
+
+Match 4 reused the final Release executable and ordinary server identified above, with the original Arena selector set to 90 seconds, MPS1 and no fog. The peer moved Sword 4 from `(7,2)` through `(6,2)` and `(5,2)` to `(4,2)`, then confirmed Attack against Mortar 34 at `(3,2)`. The service received flag-1 MOVE followed immediately by ATTACK_UNIT `[4,34]`, accepted both in order, and preserved the matching MOVE post-CRC / ATTACK pre-CRC. After the turn changed, both native views displayed the mortar at `(3,2)` with **47 HP**. This closes the committed movement/attack control against the current preview-ordering implementation. UI previews remain distinct from server-held preview/Undo transport tests.
+
+The host then chose native Surrender. Both clients displayed the correct failed/successful mission screens and agreed on both result pages: `adgjmptw` lost seven units, played 2/2 turns and used 3:21 of 3:24; `adgjmpt` lost zero units, played 1/2 turns and used 3:24 of 3:24. All other displayed counters were zero. Both returned to Choose Mode. SQLite contains exactly one accepted attack, one surrender, one server EndGame, two correct outcomes and no pending rows. The native log scans were clean. This run's matching time does not resolve the intermittent difference reproduced in match 3. Some host result labels retained pixels from the preceding page; that rendering issue is recorded separately from the matching values.
+
+Local raw evidence is in `data/verification/highseize/preview-native-2026-09-15/match-4/`. No emulator or service code changed for these follow-ups; the passing Release regression, cross-platform CI and complete 193-test service run remain applicable. Original game binaries, unit coordinates and HP were not edited.
+
+## Key screenshots
+
+These are unedited native screenshots from the runs above. Match 3 covers commander lengths and preview behavior; match 4 covers committed damage and settlement. They establish the displayed states; packet order and persistent outcomes also rely on the recorded trace and database evidence.
+
+| Check | Host | Peer |
+| --- | --- | --- |
+| Different-length commander names and teams | [Host](screenshots/2026-09-15-m3-main-teams.jpg) | [Peer](screenshots/2026-09-15-m3-peer-teams.jpg) |
+| Cancel and reselect | [Cancelled preview](screenshots/2026-09-15-m3-main-cancel.jpg) | — |
+| Deadline rollback / committed movement | [Rollback](screenshots/2026-09-15-m3-main-timeout-rollback.jpg) | [Committed move](screenshots/2026-09-15-m3-peer-committed-move.jpg) |
+| Same mortar after attack: 47 HP | [Host](screenshots/2026-09-15-m4-main-mortar-47hp.jpg) | [Peer](screenshots/2026-09-15-m4-peer-mortar-47hp.jpg) |
+| Native surrender result | [Mission failed](screenshots/2026-09-15-m4-main-mission-result.jpg) | [Mission successful](screenshots/2026-09-15-m4-peer-mission-result.jpg) |
+| Loser: 3:21 / 3:24, seven units lost | [Host](screenshots/2026-09-15-m4-main-loser-info.jpg) | [Peer](screenshots/2026-09-15-m4-peer-loser-info.jpg) |
+| Winner: 3:24 / 3:24, zero units lost | [Host, with label redraw artifact](screenshots/2026-09-15-m4-main-winner-info.jpg) | [Peer](screenshots/2026-09-15-m4-peer-winner-info.jpg) |

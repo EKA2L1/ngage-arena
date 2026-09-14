@@ -38,3 +38,12 @@ At 23:33:26, Hooked completed its Arena Update: three uploads were followed by 6
 The reload wrapper was stopped and `python -m arena.runtime` completed the same Hooked Update at 00:01:10 UTC+08: three committed reports and 64 reads, followed by the native rankings page. The current account row displays rank 1 and the actual fresh-save score of zero. The two achievement records remained unchanged at 30 points. `normal-update-manifest.json`, `hooked-normal-update.mp4` and `hooked-normal-ranked.jpg` preserve this check. Menu inactivity had activated the game's screensaver between observation and action; a contiguous wake/navigation sequence restored correct operation. No emulator input fix or guest memory modification was made for that observation.
 
 After adding shared global/per-game NGP boards, all 114 service tests passed. The normal entry point was restarted again, and the native Launcher logged in through host TLS, queried the global board and all four installed game boards, then displayed My N-Gage Points 30, Solo Points 0, Multiplayer Points 30 and Arena Points 0. `launcher-native-points.jpg` and `point-board-contract.json` record the display, service source hashes, unchanged Release executable hash and the two persisted categorized achievements. These values were read through the native protocol, not inserted into the guest database. An anonymous HTTP probe returned those same global and Hooked point totals without setting a cookie. Cross-game aggregation, tied ranks, pagination, account separation, idempotent reports and migration from the initial achievement schema have automated coverage. Native positive catch scores, friend workflows, game-detail ranking display and the final emulator regression remain pending.
+
+## Native screenshots
+
+These original captures are from the positive-score validation on 14 September 2026. Account 1 used the authorized edited-save fixture described above; the second client's save was unedited. They document native upload/leaderboard behavior, not scores earned through natural fishing.
+
+- [Total XP leaderboard](./screenshots/total-xp-321.jpg): account 1 at rank 1 with 321 XP.
+- [Barracuda leaderboard](./screenshots/barracuda-2_5kg.png): the 2.5 kg personal best.
+- [Costa Rica Classic leaderboard](./screenshots/tournament-987.jpg): the 987-point tournament result.
+- [Second account's XP leaderboard](./screenshots/second-account-xp-board.jpg): account 1 retains 321 XP while account 2 remains at zero.
