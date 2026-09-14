@@ -5,6 +5,7 @@ import time
 import xml.etree.ElementTree as ET
 
 from arena.xmlutil import local
+from .assets import DEFAULT_ICON_URL
 
 SOAP = 'http://schemas.xmlsoap.org/soap/envelope/'
 NGP = 'http://www.nokia.com/ngp/'
@@ -182,11 +183,11 @@ class ProfileService:
                 if name in data:
                     element(game, name, data[name])
 
-    def _mini(self, parent, user):
+    def _mini(self, parent, user, default_icon_url):
         profile = self.store.get(user)
         result = element(parent, 'miniProfile')
         element(result, 'username', profile['username'])
-        element(result, 'iconUrl', profile['iconUrl'])
+        element(result, 'iconUrl', profile['iconUrl'] or default_icon_url)
         ngps = element(result, 'ngps')
         for name, points in zip(POINT_TYPES, self.store.points(user)):
             item = element(ngps, 'ngp')
@@ -194,7 +195,7 @@ class ProfileService:
             element(item, 'score', points)
         self._games(result, user)
 
-    def _profile(self, parent, user):
+    def _profile(self, parent, user, default_icon_url):
         profile = self.store.get(user)
         result = element(parent, 'user')
         for name in STRINGS:
@@ -212,7 +213,7 @@ class ProfileService:
         element(result, 'username', profile['username'])
         element(result, 'dateOfBirth', profile['dateOfBirth'] or '0001-01-01')
         element(result, 'lastProfileEditDate', timestamp(profile['updated']))
-        element(result, 'iconUrl', profile['iconUrl'])
+        element(result, 'iconUrl', profile['iconUrl'] or default_icon_url)
         element(result, 'level', profile['level'])
         element(result, 'reputation', profile['reputation'])
 
@@ -272,7 +273,7 @@ class ProfileService:
                 games.append(value)
         return self.store.update(user, changes, games)
 
-    def response(self, body, user):
+    def response(self, body, user, *, default_icon_url=DEFAULT_ICON_URL):
         if b'<!' in body:
             raise ValueError('Unsupported XML declaration')
         envelope = ET.fromstring(body)
@@ -290,18 +291,18 @@ class ProfileService:
             params = children(operation)
             if method == 'getMiniProfile':
                 target = self.store.named(string(params['username'], 20))
-                self._mini(result, target)
+                self._mini(result, target, default_icon_url)
             elif method == 'getProfile':
                 since = parse_timestamp(string(params['lastSynchDate'], 40))
                 # Clients can only return the microsecond precision sent on the wire.
                 updated = parse_timestamp(timestamp(self.store.get(user)['updated']))
                 if updated > since:
-                    self._profile(result, user)
+                    self._profile(result, user, default_icon_url)
             elif method == 'getFriendsMiniProfiles':
                 parse_timestamp(string(params['lastSyncDate'], 40))
                 friends = element(result, 'friendsMiniProfiles')
                 for target in self.store.friends(user):
-                    self._mini(friends, target)
+                    self._mini(friends, target, default_icon_url)
                 element(friends, 'timestamp', timestamp(self.store.clock()))
             elif method == 'getFriendsExtendedProfile':
                 target = self.store.named(string(params['username'], 20))

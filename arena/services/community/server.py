@@ -16,6 +16,7 @@ SOAP = 'http://schemas.xmlsoap.org/soap/envelope/'
 AUTH = 'jabber:iq:auth'
 DOMAIN = 'ngage-arena'
 from arena.xmlutil import fields, local
+from arena.services.profiles.assets import DEFAULT_ICON, DEFAULT_ICON_PATH, default_icon_url
 
 
 @dataclass
@@ -175,6 +176,14 @@ class CommunityServer:
             LOG.debug('Community HTTP %s %s', method, route.partition('?')[0])
             values = {key.lower(): value.strip() for line in lines if ':' in line
                       for key, value in [line.split(':', 1)]}
+            if method in {'GET', 'HEAD'} and route == DEFAULT_ICON_PATH:
+                writer.write(b'HTTP/1.0 200 OK\r\nContent-Type: image/png\r\n'
+                             b'Cache-Control: public, max-age=86400\r\nConnection: close\r\n'
+                             b'Content-Length: '+str(len(DEFAULT_ICON)).encode()+b'\r\n\r\n')
+                if method == 'GET':
+                    writer.write(DEFAULT_ICON)
+                await writer.drain()
+                return
             cookie_header = values.get('cookie', '')
             if not cookie_header and re.fullmatch(r'jsessionid=[a-f0-9]{48}', matrix):
                 cookie_header = 'JSESSIONID='+matrix.split('=', 1)[1]
@@ -219,7 +228,8 @@ class CommunityServer:
                     LOG.info('Game request rejected for %s: %s', route, type(error).__name__)
                     return
             elif route == '/ngi/axis/services/userprofile':
-                response = self.profiles.response(body, session.user)
+                icon_url = default_icon_url(values.get('host'), bool(writer.get_extra_info('ssl_object')))
+                response = self.profiles.response(body, session.user, default_icon_url=icon_url)
             else:
                 response = self.soap_response(body, session, ngi=route == '/ngi/axis/services/NGICommunity')
             # The native Arena framework retains this cookie across game-room exits.
