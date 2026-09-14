@@ -35,10 +35,10 @@ Add host overrides in iOS **Settings â†’ Host Overrides**, Android **Settings â†
 | Tomb Raider | `discovery.cng.n-gage.com`, `arena.cng.n-gage.com` |
 | Ashen | `arena.n-gage.com`, `im01.ashen.torus.sf.yav4.com` |
 | High Seize | `arena.n-gage.com`, `im.hs.redlynx.sf.yav4.com`, `bs01.hs.redlynx.sf.yav4.com` |
-| N-Gage Launcher | `new.arena.n-gage.com`, `imps.arena.n-gage.com`, `snap.dev.naftest.nokia.sf.yav4.com` |
+| N-Gage Launcher | `new.arena.n-gage.com`, `imps.arena.n-gage.com`, `snap.dev.naftest.nokia.sf.yav4.com`, `playapps.ngage.mobi`, `showroom.n-gage.com` |
 | Hooked On | `snap.creatures.arena.n-gage.com`, `snap01.creatures.ngidev.sf.yav4.com` |
 
-N-Gage 2.0 packages can contain additional names; the [Launcher helper](arena/services/launcher/setup.md) discovers installed configuration. `www.n-gage.com` is also used for legal pages, which this service does not reproduce. HTTP Host headers retain the original names, so reverse proxies must accept them. Ashen's original registration uses HTTP **80**; expose that port or forward it to a Community listener.
+N-Gage 2.0 packages can contain additional names; the [Launcher helper](arena/services/launcher/setup.md) discovers installed configuration. `www.n-gage.com` is also used for legal pages, which this service does not reproduce. HTTP Host headers retain the original names, so reverse proxies must accept them. Ashen's original registration and Launcher web Rankings / Store use HTTP **80**; expose that port or forward it to a Community listener.
 
 Use the original multilingual Ashen **1.0.6** package: it needs only host mappings. [Tomb Raider setup](arena/games/tomb_raider/setup.md) retains its required client repairs and billing provider. [High Seize setup](arena/games/high_seize/setup.md) changes its configurable HTTP port. Enter Hooked through the [N-Gage Launcher](arena/services/launcher/setup.md), then use Arena Update.
 

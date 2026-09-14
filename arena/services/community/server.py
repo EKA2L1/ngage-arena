@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import secrets
 import time
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape, quoteattr
 
@@ -39,6 +40,10 @@ class CommunityServer:
         self.local_native_http = local_native_http
         from arena.services.rankings.service import RankingsService
         self.rankings = RankingsService(store, games)
+        from arena.services.rankings.web import RankingPages
+        self.ranking_pages = RankingPages(self.rankings.points, games)
+        from arena.services.catalogue.pages import CataloguePages
+        self.catalogue_pages = CataloguePages(games)
         from arena.services.profiles.service import ProfileService, ProfileStore
         self.profiles = ProfileService(ProfileStore(store, point_totals=self.rankings.points.totals))
         from arena.services.messaging.service import Messaging
@@ -176,6 +181,33 @@ class CommunityServer:
             LOG.debug('Community HTTP %s %s', method, route.partition('?')[0])
             values = {key.lower(): value.strip() for line in lines if ':' in line
                       for key, value in [line.split(':', 1)]}
+            page_path = urlsplit(route).path
+            pages = (self.ranking_pages if page_path == self.ranking_pages.path else
+                     self.catalogue_pages if page_path.startswith(self.catalogue_pages.prefix) else None)
+            if pages:
+                status = b'200 OK'
+                extra = b''
+                content_type = 'text/html; charset=utf-8'
+                try:
+                    if method not in {'GET', 'HEAD'}:
+                        status, response = b'405 Method Not Allowed', b'Method not allowed'
+                        extra = b'Allow: GET, HEAD\r\n'
+                    else:
+                        if pages is self.catalogue_pages:
+                            response = pages.render(route, values.get('host', 'showroom.n-gage.com'),
+                                                    bool(writer.get_extra_info('ssl_object')))
+                            content_type = pages.content_type(route)
+                        else:
+                            response = pages.render(route)
+                except ValueError:
+                    status, response = b'400 Bad Request', b'Invalid page request'
+                writer.write(b'HTTP/1.0 '+status+b'\r\n'+extra
+                             + b'Content-Type: '+content_type.encode()+b'\r\nCache-Control: no-store\r\n'
+                             + b'Connection: close\r\nContent-Length: '+str(len(response)).encode()+b'\r\n\r\n')
+                if method != 'HEAD':
+                    writer.write(response)
+                await writer.drain()
+                return
             if method in {'GET', 'HEAD'} and route == DEFAULT_ICON_PATH:
                 writer.write(b'HTTP/1.0 200 OK\r\nContent-Type: image/png\r\n'
                              b'Cache-Control: public, max-age=86400\r\nConnection: close\r\n'

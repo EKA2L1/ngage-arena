@@ -68,13 +68,29 @@ class PointBoards:
             selection = 'ORDER BY position LIMIT ? OFFSET ?'
             values = [int(params['limit']), offset]
         global_board = params['board'] == 'ngpsglobal'
-        condition = '' if global_board else ' AND achievements.game_class=?'
-        scope_values = [] if global_board else [request.game_class]
+        rows = self._rows(None if global_board else request.game_class, members, selection, values)
+        payload = f'0\nOK\n1|{request.query_id}|{request.operation}||{params["board"]}|{len(rows)}|{offset}\n'
+        for row in rows:
+            fields = [row['name'], row['rank'], row['single'], row['multi']]
+            if global_board:
+                fields.append(0)
+            fields.extend([row['total'], 0])
+            payload += '|'.join(map(str, fields))+'\n'
+        return payload
+
+    def top(self, game_class=None, *, offset=0, limit=10):
+        if not 0 <= offset <= 9999999 or not 1 <= limit <= 100:
+            raise ValueError('Invalid point board range')
+        return self._rows(game_class, (), 'ORDER BY position LIMIT ? OFFSET ?', [limit, offset])
+
+    def _rows(self, game_class, members, selection, values):
+        condition = '' if game_class is None else ' AND achievements.game_class=?'
+        scope_values = [] if game_class is None else [game_class]
         membership = ''
         if members:
             membership = ' AND users.name COLLATE NOCASE IN ('+','.join('?' for _ in members)+')'
             scope_values.extend(members)
-        rows = list(self.db.execute('''WITH totals AS (
+        return list(self.db.execute('''WITH totals AS (
             SELECT users.name,
                 COALESCE(SUM(CASE WHEN ngp_type=1 THEN points ELSE 0 END),0) AS single,
                 COALESCE(SUM(CASE WHEN ngp_type=2 THEN points ELSE 0 END),0) AS multi
@@ -85,11 +101,3 @@ class PointBoards:
                 ROW_NUMBER() OVER (ORDER BY single+multi DESC,name COLLATE NOCASE) AS position
             FROM totals)
             SELECT * FROM ranked '''+selection, scope_values+values))
-        payload = f'0\nOK\n1|{request.query_id}|{request.operation}||{params["board"]}|{len(rows)}|{offset}\n'
-        for row in rows:
-            fields = [row['name'], row['rank'], row['single'], row['multi']]
-            if global_board:
-                fields.append(0)
-            fields.extend([row['total'], 0])
-            payload += '|'.join(map(str, fields))+'\n'
-        return payload

@@ -11,3 +11,11 @@ This interpretation follows the original `playservermh` consumer: `0xd296` / `0x
 `RankingsService` parses query IDs, board names, filters and report fields; adapters define supported game queries. `topn`, `getplayer` and `proximitylist` are public reads. Source names in a query do not authenticate a player. Writes use a Community session or the opt-in `--local-native-http` association with a live SNAP login for the same loopback address/name. Closing SNAP revokes that association. Remote writes require normal credentials.
 
 Scores are committed before confirmation and retries preserve personal bests. The shared point boards read the earned achievement ledger, also used by profiles; uploaded profile totals do not override earned values. Hooked's field/scaling and segmented-report contracts live in its game folder.
+
+## Launcher web rankings
+
+The 5320 Launcher uses a separate embedded browser for the Rankings tab. `ngiprofileviews.dll` at linked address `0x1183c` builds the URL from `ngiplaycommon.dll` export 668 (`0x1ba22`), which reads Central Repository `0x20008bb7`, key `0x0b`. The shipped setting is `http://playapps.ngage.mobi/rankings.html`. It appends `CC`, `NETID`, `GCID`, `USERNAME`, `LANG` and `CMP=MOB-ranking01`. This is independent of the XML point queries used by native Points pages.
+
+The private `/rankings.html` endpoint provides original XHTML content using the same earned-point ledger and competition ranks as the XML service. `GCID` scopes a game; `0`, `4444` or an omitted class selects shared global points. `USERNAME` only highlights a public row, without authenticating the viewer. GET and HEAD are stateless, send no cookie and do not extend sessions. Pages contain ten players and retain their scope when following Previous/Next. The current presentation is English and covers point totals. Additional game-score categories remain separate work.
+
+The original Launcher subsequently rendered this page on the 5320 with two real account totals of 30 and 10 and current-player highlighting. The guest HTTP startup also required the pre-reform RConnection Control packet layout and the GPRS status property; those are general emulator fixes. Local UI validation used a temporary application URL port while the original HTTP 80 listener was unavailable.

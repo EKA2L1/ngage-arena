@@ -12,6 +12,7 @@
 | `arena/services/achievements` | Idempotent achievement journal and defined point values |
 | `arena/services/snap` | Shared UDP framing, authentication, peer lifecycle and application callbacks |
 | `arena/services/launcher` | N-Gage 2.0 configuration and Launcher integration requirements |
+| `arena/services/catalogue` | Public Store pages and companion resources for registered N-Gage 2.0 games |
 | `arena/games/tomb_raider` | AirPlay, replays, courses, challenges, billing provider and required setup |
 | `arena/games/ashen` | Nine personal-best score boards and its XMPP adapter |
 | `arena/games/high_seize` | Game packets, room/battle service, commander codec, owned content reader and combat rules |

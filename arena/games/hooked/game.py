@@ -10,6 +10,8 @@ FILTERS = {'LOCATION_ID', 'TOURNAMENT_ID', 'FISH_ID'}
 
 
 class HookedGame:
+    title = 'Hooked On: Creatures of the Deep'
+    summary = 'Share fishing records and compare Arena points.'
     game_class = '58600'
     app_uid = 0x2000AFBC
     achievement_points = dict(enumerate(

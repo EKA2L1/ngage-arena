@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+from urllib.parse import urlsplit
 import yaml
 from arena.tools.backups import restore
 from arena.tools.hosts import host_target
@@ -47,6 +48,23 @@ def configure(data, games, address='127.0.0.1', http_port=8194, reset_login=None
                     updates[source] = rewritten.encode()
     if not domains:
         raise ValueError('No installed N-Gage 2.0 service configuration found')
+    for drive in ('c', 'e'):
+        repository = data/'drives'/drive/'private/10202be9'
+        for source in repository.glob('*'):
+            if source.name.lower() not in {'20008bb7.txt', '20008bbb.txt'}:
+                continue
+            content = source.read_bytes()
+            text = content.decode('utf-16' if content.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig')
+            for line in text.splitlines():
+                fields = line.split(None, 2)
+                if len(fields) != 3 or fields[1] != 'string':
+                    continue
+                url = urlsplit(fields[2].strip().strip('"'))
+                ranking = (source.name.lower() == '20008bb7.txt'
+                           and re.fullmatch(r'0[xX]0*[bB]', fields[0]) and url.path == '/rankings.html')
+                showroom = source.name.lower() == '20008bbb.txt' and url.path.startswith('/sh/output/')
+                if url.scheme in ('http', 'https') and url.hostname and (ranking or showroom):
+                    domains.add(url.hostname.lower().rstrip('.'))
     config = data/'config.yml'
     settings = yaml.safe_load(config.read_text())
     if not isinstance(settings, dict) or not isinstance(settings.setdefault('hosts', {}), dict):
