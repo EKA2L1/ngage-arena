@@ -12,6 +12,8 @@ NAF uses HTTPS for authentication even when other services use HTTP. Start the s
 
 For old installations affected by the corrected Central Repository parser, `--reset-login rm-409` backs up and clears only that ROM's saved NAF login preferences. Use this recovery option only for damaged settings. It does not change accounts or saves.
 
+Select **Save password on device** on the native login page to reuse credentials. After an HTTP session expires, choose **Options → Set Online Status → Logged Out**, then **Available to Play**. The Launcher authenticates again without another password prompt. The saved password also survives a normal Launcher exit; reopening it initially shows offline, and selecting Available to Play reconnects. A running SNAP connection does not automatically renew an expired HTTP session.
+
 For native Hooked writes on loopback, add `--local-native-http` to the runtime command. It requires an active SNAP login for the same name/address and trusts local processes. Remote writes still require session credentials. Public boards need no login.
 
 Embedded web Rankings and Store addresses use HTTP **80** independently of the NAF port setting. Expose that port or forward it to a Community listener. The helper discovers their hostnames in the application’s Central Repository settings and adds them to emulator hosts; it leaves those repository files unchanged.
