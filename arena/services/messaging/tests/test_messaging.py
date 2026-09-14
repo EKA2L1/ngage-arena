@@ -134,6 +134,36 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.presence(self.b, stanza('<presence><status>away</status></presence>'))
         self.assertEqual(self.a_messages, [])
 
+    async def test_reinvitation_after_decline_and_removal_keeps_the_new_body(self):
+        await self.available(self.a)
+        await self.available(self.b)
+        await self.subscribe(self.a, 'Bob')
+        await self.hub.presence(self.b, stanza(
+            '<presence type="unsubscribed" to="Alice@ngi-prod" id="segachat_buddy_accrej"/>'))
+        for phase in ('decline', 'removal'):
+            with self.subTest(phase=phase):
+                body = '0Reinvite after '+phase
+                await self.hub.presence(self.a, stanza(
+                    '<presence type="subscribe" to="Bob@ngi-prod" id="segachat_buddy_req">'
+                    '<status>'+body+'</status></presence>'))
+                self.assertEqual(self.b_messages[-1].findtext('status'), body)
+                self.assertEqual(self.hub.subscription(self.alice, self.bob), ('none', True))
+                await self.hub.disconnect(self.b)
+                self.b, self.b_messages = self.client(self.bob)
+                await self.available(self.b)
+                self.assertEqual(self.b_messages[-1].findtext('status'), body)
+                self.assertEqual(self.b_messages[-1].get('id'), 'segachat_buddy_req')
+                await self.accept(self.b, 'Alice')
+                await self.subscribe(self.b, 'Alice')
+                await self.accept(self.a, 'Bob')
+                self.assertEqual(self.hub.subscription(self.alice, self.bob), ('both', False))
+                self.assertEqual(self.accounts.db.execute(
+                    'SELECT count(*) FROM subscription_requests').fetchone()[0], 0)
+                removal = stanza('<iq type="set"><query xmlns="jabber:iq:roster">'
+                    '<item jid="Bob@ngi-prod" subscription="remove"/></query></iq>')
+                await self.hub.roster(self.a, removal, removal[0])
+                self.assertEqual(self.hub.subscription(self.alice, self.bob), ('none', False))
+
     async def test_friend_roster_and_messages_are_shared_between_game_domains(self):
         await self.subscribe(self.a, 'Bob')
         await self.accept(self.b, 'Alice')
