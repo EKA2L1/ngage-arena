@@ -1,6 +1,15 @@
 # Local N-Gage Arena
 
-A private service for the native Arena screens in **Tomb Raider**, **Ashen**, **High Seize**, and the **N-Gage 2.0 Launcher / Hooked On: Creatures of the Deep**. Accounts are shared across games. This is an independent project used with EKA2L1; ROMs, games and Nokia's original online content are not included. Some Arena features remain unfinished; each module records its protocol, validation and remaining work.
+An independent N-Gage Arena private server for EKA2L1, with shared accounts across games. Use the games' original Arena interfaces to access the features below. ROMs, games and Nokia's original online content are not included.
+
+| Game | Platform | Supported Arena features | Current limits |
+| --- | --- | --- | --- |
+| [Tomb Raider](arena/games/tomb_raider/validation.md) | N-Gage | Recording upload/playback, practice races, competitive challenges, taunts/revenge and strategy-guide clips | Mentor character and offline guide library remain unverified. |
+| [Ashen](arena/games/ashen/validation.md) | N-Gage | Registration/login, all nine statistic submissions and leaderboards | Scores are client-reported; gameplay is not validated. |
+| [High Seize](arena/games/high_seize/validation.md) | N-Gage | Login, rooms, two-player battle relay and surrender results | Movement/HP retesting, ordinary victory and ranked settlement remain unfinished. |
+| [Hooked On: Creatures of the Deep](arena/games/hooked/validation.md) | N-Gage 2.0 | Score uploads, leaderboards and shared achievement points through Launcher | Native uploads currently require the local-only mode; positive-score checks use edited saves. |
+
+The [N-Gage 2.0 Launcher](arena/services/launcher/validation.md) also supports login, profiles, friends, messaging, shared points, web rankings and the private Store catalogue. Support is partial; each module documents its protocol, validation and remaining work.
 
 ## Start
 
