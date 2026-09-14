@@ -1,0 +1,9 @@
+# Rankings and points protocol
+
+### Shared N-Gage point boards
+
+The shared `ngpsglobal` and per-game `ngps` boards derive their totals from the same account achievement journal. They support public all-time TopN and nearby lists. The global board ignores the request's incidental game class; a per-game board filters that class. Global rows are `name|rank|singlePlayer|multiplayer|community|total|metadata`; game rows omit the community column. Community points are zero until a community-point source is implemented. The seven-field header retains query ID at index 1 and board at index 4. `playservermh` global parser `0x107f2`, per-game parser `0x1096a`, and its UsersTable layout establish the distinct point fields; `playserverach` synchronizes single-player and multiplayer values into NGPType 1 and 2. Unsupported time periods, filters and friend lists are rejected rather than returning an unfiltered board.
+
+`RankingsService` parses query IDs, board names, filters and report fields; adapters define supported game queries. `topn`, `getplayer` and `proximitylist` are public reads. Source names in a query do not authenticate a player. Writes use a Community session or the opt-in `--local-native-http` association with a live SNAP login for the same loopback address/name. Closing SNAP revokes that association. Remote writes require normal credentials.
+
+Scores are committed before confirmation and retries preserve personal bests. The shared point boards read the earned achievement ledger, also used by profiles; uploaded profile totals do not override earned values. Hooked's field/scaling and segmented-report contracts live in its game folder.

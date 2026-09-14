@@ -3,12 +3,12 @@ import argparse
 import asyncio
 import logging
 from pathlib import Path
-from arena.accounts import AccountStore
-from arena.community import CommunityServer
+from arena.services.accounts.store import AccountStore
+from arena.services.community.server import CommunityServer
 from arena.games import GameRegistry
-from arena.games.ashen import AshenGame
-from arena.games.highseize import HighSeizeGame
-from arena.games.hooked import HookedGame
+from arena.games.ashen.game import AshenGame
+from arena.games.high_seize.game import HighSeizeGame
+from arena.games.hooked.game import HookedGame
 
 LOG = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def default_games(accounts):
 
 
 async def serve_community(args):
-    from arena.snap import SnapServer
+    from arena.services.snap.protocol import SnapServer
     store = AccountStore(args.data)
     games = default_games(store)
     server = CommunityServer(store, games, args.trace,
@@ -29,7 +29,7 @@ async def serve_community(args):
     try:
         tls_ports = set(getattr(args, 'tls_port', None) or [])
         if tls_ports:
-            from arena.tls import CommunityListener, server_context
+            from arena.services.community.tls import CommunityListener, server_context
             context = server_context(args.tls_cert, args.tls_key, args.legacy_tls)
             for port in tls_ports:
                 listeners.append(CommunityListener(server.http, args.host, port, context))
@@ -46,8 +46,8 @@ async def serve_community(args):
             datagrams.append(transport)
             LOG.info('SNAP UDP listening on %s:%d', args.host, args.snap_port)
         if getattr(args, 'airplay_port', 0):
-            from arena.server import Arena
-            from arena.store import Store
+            from arena.games.tomb_raider.server import Arena
+            from arena.games.tomb_raider.store import Store
             tomb = Store(args.data, accounts=store)
             transport, _ = await asyncio.get_running_loop().create_datagram_endpoint(
                 lambda: Arena(tomb, args.billing), local_addr=(args.host, args.airplay_port))
@@ -81,7 +81,7 @@ def main():
     parser.add_argument('--snap-port', type=int, default=9090)
     parser.add_argument('--snap-address')
     parser.add_argument('--airplay-port', type=int, default=41001, help='Tomb Raider UDP port; 0 disables this listener')
-    parser.add_argument('--billing', type=Path, default=Path(__file__).resolve().parents[1]/'assets/abtesrv.dll')
+    parser.add_argument('--billing', type=Path, default=Path(__file__).resolve().parent/'games/tomb_raider/assets/abtesrv.dll')
     parser.add_argument('--data', type=Path, default=Path('data'))
     parser.add_argument('--trace', type=Path)
     parser.add_argument('--log-level', choices=('INFO', 'DEBUG'), default='INFO')

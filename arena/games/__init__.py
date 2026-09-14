@@ -22,7 +22,7 @@ class GameRegistry:
         return game.retrieve(user, node)
 
     def rankings(self, user, request):
-        from arena.rankings import UnsupportedRanking
+        from arena.services.rankings.service import UnsupportedRanking
         game = self.games.get(request.game_class)
         if game is None or not hasattr(game, 'rankings'):
             raise UnsupportedRanking('Unsupported ranking game')
