@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import replace
+import sqlite3
 import struct
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from arena.ashen import AshenStore
 from arena.highseize import BattleKind, BattleMessage, GameDecoder, GamePacket, GameSettings
 from arena.highseize_server import HighSeizeArena, HighSeizeStore
 from arena.snap import ACK, RELIABLE, Credentials, Packet, Session, SnapServer, decode_datagram
+from tests.highseize_fixtures import commander_wire
 
 
 class Transport:
@@ -87,7 +89,7 @@ class HighSeizeServerTests(unittest.TestCase):
     def begin(self):
         room, _ = self.create_room()
         for slot, peer in enumerate(self.peers, 1):
-            commander = b'CMM01\0' + bytes(1022)
+            commander = commander_wire(name=f'Commander {slot}'.encode(), slot=slot)
             self.game(peer, GamePacket(18, struct.pack('<HHI', 1, len(commander), slot) + commander, slot))
             self.game(peer, GamePacket(18, struct.pack('<HHI', 2, 0, slot), slot))
             self.game(peer, GamePacket(18, struct.pack('<HHI', 0x20, 0, slot), slot))
@@ -96,6 +98,44 @@ class HighSeizeServerTests(unittest.TestCase):
             self.game(peer, BattleMessage(BattleKind.SYNCHRONIZATION, source=slot).packet())
         self.assertEqual(room.phase, 'battle')
         return room
+
+    def test_commander_changes_require_readiness_and_preserve_valid_data(self):
+        room, _ = self.create_room()
+        host, peer = self.peers
+        member = room.members[host]
+        first = commander_wire(b'First', control=1)
+        self.game(host, GamePacket(18, struct.pack('<HHI', 1, len(first), 1) + first, 1))
+        self.game(host, GamePacket(18, struct.pack('<HHI', 2, 0, 1), 1))
+        self.game(host, GamePacket(18, struct.pack('<HHI', 0x20, 0, 1), 1))
+        self.assertTrue(member.ready and member.team_ready)
+        before = list(self.games[peer])
+        malformed = b'CMM01\0' + bytes(1022)
+        self.game(host, GamePacket(18, struct.pack('<HHI', 1, len(malformed), 1) + malformed, 1))
+        self.assertEqual(self.games[peer], before)
+        self.assertEqual(member.commander_data.name, b'First')
+        self.assertTrue(member.ready and member.team_ready)
+        second = commander_wire(b'A much longer captain name', control=2)
+        self.game(host, GamePacket(18, struct.pack('<HHI', 1, len(second), 1) + second, 1))
+        self.assertEqual(member.commander_data.name, b'A much longer captain name')
+        self.assertFalse(member.ready or member.team_ready)
+        self.assertEqual(self.games[peer][-1].body[8:], second)
+
+    def test_started_match_retains_exact_commander_records(self):
+        room = self.begin()
+        rows = self.store.db.execute(
+            'SELECT slot,commander FROM hs_players WHERE match_id=? ORDER BY slot', (room.match,)).fetchall()
+        self.assertEqual([tuple(row) for row in rows], [
+            (slot, commander_wire(name=f'Commander {slot}'.encode(), slot=slot)) for slot in (1, 2)])
+
+    def test_legacy_player_rows_survive_idempotent_schema_upgrade(self):
+        with sqlite3.connect(':memory:') as db:
+            db.execute('''CREATE TABLE hs_players (match_id INTEGER, user_id INTEGER,
+                slot INTEGER, name TEXT, team INTEGER, outcome TEXT, PRIMARY KEY(match_id,slot))''')
+            db.execute("INSERT INTO hs_players VALUES(1,2,1,'Captain',0,'win')")
+            HighSeizeStore(db)
+            HighSeizeStore(db)
+            self.assertEqual(db.execute('SELECT * FROM hs_players').fetchone(),
+                             (1, 2, 1, 'Captain', 0, 'win', None))
 
     def battle(self, peer, message):
         self.game(peer, replace(message.packet(), destination=0))

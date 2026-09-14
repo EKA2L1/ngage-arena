@@ -131,7 +131,7 @@ To restore the installation, stop EKA2L1 and use `arena.ashen_setup --restore /a
 
 ## High Seize (experimental)
 
-The service now handles native filtered rooms, commander/team setup, battle-message delivery, turn deadlines and surrender settlement. Two original 1.0.2 clients completed a two-player Blood Bay match, with matching winner, loser, turns and unit-loss counts. SQLite records the match, participants and ordered battle events, including server-generated Begin, End turn and End game. Repeated finish calls cannot replace an existing result.
+The service now handles native filtered rooms, commander/team setup, battle-message delivery, turn deadlines and surrender settlement. Two original 1.0.2 clients completed a two-player Blood Bay match, with matching winner, loser, turns and unit-loss counts. SQLite records the match, participants, original variable-length commander records and ordered battle events, including server-generated Begin, End turn and End game. Repeated finish calls cannot replace an existing result.
 
 Run the unified `arena.runtime` service described above. Stop EKA2L1 and configure the installed original multilingual 1.0.2 package:
 

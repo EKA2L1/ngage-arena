@@ -7,6 +7,7 @@ import time
 
 from arena.highseize import (BattleKind, BattleMessage, GameDecoder, GamePacket,
                              GameSettings, Player, encode_players)
+from arena.highseize_commander import Commander
 
 LOG = logging.getLogger(__name__)
 SETUP = struct.Struct('<HHI')
@@ -24,6 +25,7 @@ class HighSeizeStore:
             match_id INTEGER NOT NULL REFERENCES hs_matches(id),
             user_id INTEGER NOT NULL REFERENCES users(id), slot INTEGER NOT NULL,
             name TEXT NOT NULL, team INTEGER NOT NULL, outcome TEXT,
+            commander BLOB,
             PRIMARY KEY(match_id,slot));
         CREATE TABLE IF NOT EXISTS hs_events (
             match_id INTEGER NOT NULL REFERENCES hs_matches(id),
@@ -33,6 +35,9 @@ class HighSeizeStore:
             state TEXT NOT NULL, PRIMARY KEY(match_id,ordinal),
             UNIQUE(match_id,source,message_id));
         ''')
+        if 'commander' not in {row[1] for row in db.execute('PRAGMA table_info(hs_players)')}:
+            with db:
+                db.execute('ALTER TABLE hs_players ADD COLUMN commander BLOB')
 
     def recover(self):
         with self.db:
@@ -45,8 +50,9 @@ class HighSeizeStore:
         with self.db:
             ident = self.db.execute('INSERT INTO hs_matches(started,settings) VALUES(?,?)',
                                     (self.clock(), settings.encode())).lastrowid
-            self.db.executemany('INSERT INTO hs_players VALUES(?,?,?,?,?,NULL)',
-                ((ident, m.user, m.slot, m.name, m.team) for m in members))
+            self.db.executemany('''INSERT INTO hs_players
+                (match_id,user_id,slot,name,team,commander) VALUES(?,?,?,?,?,?)''',
+                ((ident, m.user, m.slot, m.name, m.team, m.commander[8:]) for m in members))
         return ident
 
     def event(self, match, message, elapsed, state='accepted'):
@@ -88,6 +94,7 @@ class Member:
     initialized: bool = False
     next_ping: float = 0
     commander: bytes | None = None
+    commander_data: Commander | None = None
     ready: bool = False
     team_ready: bool = False
     synchronization: BattleMessage | None = None
@@ -324,9 +331,10 @@ class HighSeizeArena:
             elif slot != member.slot:
                 raise ValueError('Invalid setup owner')
             elif subtype == 1:
-                if size != 1028 or not game.body[8:].startswith(b'CMM01\0'):
-                    raise ValueError('Invalid commander data')
+                member.commander_data = Commander.decode(game.body[8:])
                 member.commander = game.body
+                member.ready = False
+                member.team_ready = False
             elif subtype == 2:
                 if size or not member.commander:
                     raise ValueError('Commander must be supplied before Ready')
