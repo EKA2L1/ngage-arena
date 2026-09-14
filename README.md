@@ -24,7 +24,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout data/tls/server-key.pem \
   --tls-cert data/tls/server.pem --tls-key data/tls/server-key.pem --local-native-http
 ```
 
-Current EKA2L1 handles TLS by default. Connected loopback/private LAN addresses need no CA installation. Remote deployments need a system-trusted certificate covering the configured server hostname. `--local-native-http` allows native score/achievement reports from loopback clients with a matching active SNAP login; it trusts local processes. Remote writes require session credentials. Leaderboard reads are public.
+Use an EKA2L1 build containing the [host integration follow-up (#712)](https://github.com/EKA2L1/EKA2L1/pull/712), which enables host TLS by default. Connected loopback/private LAN addresses need no CA installation. Remote deployments need a system-trusted certificate covering the configured server hostname. `--local-native-http` allows native score/achievement reports from loopback clients with a matching active SNAP login; it trusts local processes. Remote writes require session credentials. Leaderboard reads are public.
 
 ## Connect EKA2L1
 
