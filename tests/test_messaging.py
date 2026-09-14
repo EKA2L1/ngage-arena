@@ -2,14 +2,19 @@ import asyncio
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
 
 from arena.accounts import AccountStore
-from arena.messaging import Messaging, ROSTER
+from arena.messaging import Messaging, ROSTER, wire
 from arena.profiles import ProfileStore
 
 
 def stanza(text):
     return ET.fromstring(text)
+
+
+async def immediate_sleep(_):
+    pass
 
 
 class MessagingTests(unittest.IsolatedAsyncioTestCase):
@@ -19,7 +24,7 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         self.alice = self.accounts.create_user('Alice', 'one')
         self.bob = self.accounts.create_user('Bob', 'two')
         self.profiles = ProfileStore(self.accounts)
-        self.hub = Messaging(self.profiles)
+        self.hub = Messaging(self.profiles, sleep=immediate_sleep)
         self.a, self.a_messages = self.client(self.alice)
         self.b, self.b_messages = self.client(self.bob)
 
@@ -88,7 +93,7 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         self.accounts.close()
         self.accounts = AccountStore(self.directory.name)
         self.profiles = ProfileStore(self.accounts)
-        self.hub = Messaging(self.profiles)
+        self.hub = Messaging(self.profiles, sleep=immediate_sleep)
         bob, received = self.client(self.bob)
         await self.available(bob)
         self.assertEqual(len(received), 1)
@@ -205,20 +210,23 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(rows), 1)
         self.assertIn('New message', rows[0][0])
 
-    async def test_native_selective_then_bulk_fetch_delivers_each_message_once(self):
+    async def test_native_selective_then_bulk_fetch_repeats_until_purge(self):
         carol = self.accounts.create_user('Carol', 'three')
         c, _ = self.client(carol)
         await self.hub.message(self.a, stanza('<message to="Bob@ngi-prod"><body>0001First</body></message>'))
         await self.hub.message(c, stanza('<message to="Bob@ngi-prod"><body>0001Other friend</body></message>'))
         await self.hub.message(self.a, stanza('<message to="Bob@ngi-prod"><body>0001Second</body></message>'))
-        identifier = str(self.accounts.db.execute('SELECT max(id) FROM offline_messages').fetchone()[0])
+        row = self.accounts.db.execute('SELECT * FROM offline_messages ORDER BY id DESC LIMIT 1').fetchone()
+        identifier = self.hub.message_node(row)
         await self.fetch(self.b, jid='Carol@ngi-prod', node=identifier)
         self.assertEqual(len(self.b_messages), 1)
         await self.fetch(self.b, jid='Alice@ngi-prod', node=identifier)
         await self.fetch(self.b)
         await self.fetch(self.b)
         messages = [node for node in self.b_messages if node.tag == 'message']
-        self.assertEqual([node.findtext('body') for node in messages], ['0001Second', '0001First', '0001Other friend'])
+        self.assertEqual([node.findtext('body') for node in messages], [
+            '0001Second', '0001First', '0001Other friend', '0001Second',
+            '0001First', '0001Other friend', '0001Second'])
         self.assertTrue(all(node.get('type') is None and node.get('id') is None for node in messages))
         await self.purge(self.b)
         self.assertEqual(self.accounts.db.execute('SELECT count(*) FROM offline_messages').fetchone()[0], 0)
@@ -232,12 +240,61 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.disconnect(self.b)
         self.accounts.close()
         self.accounts = AccountStore(self.directory.name)
-        self.hub = Messaging(ProfileStore(self.accounts))
+        self.hub = Messaging(ProfileStore(self.accounts), sleep=immediate_sleep)
         bob, received = self.client(self.bob)
         await self.fetch(bob)
         self.assertEqual(received[0].findtext('body'), 'Unacknowledged')
         await self.purge(bob)
         self.assertEqual(self.accounts.db.execute('SELECT count(*) FROM offline_messages').fetchone()[0], 0)
+
+    async def test_offline_delivery_retains_server_utc_timestamp_after_reopen(self):
+        self.hub.clock = lambda: 0
+        await self.hub.message(self.a, stanza('''<message to="Bob@ngi-prod"><body>0001Stored</body>
+            <x xmlns="jabber:x:delay" stamp="spoofed"/>
+            <delay xmlns="urn:xmpp:delay" stamp="spoofed"/></message>'''))
+        self.accounts.close()
+        self.accounts = AccountStore(self.directory.name)
+        self.hub = Messaging(ProfileStore(self.accounts), clock=lambda: 86400,
+                             sleep=immediate_sleep)
+        bob, received = self.client(self.bob)
+        await self.fetch(bob)
+        message = received[0]
+        delay = message.findall('{jabber:x:delay}x')
+        self.assertEqual(len(delay), 1)
+        self.assertEqual(delay[0].attrib, {'from': 'ngi-prod', 'stamp': '19700101T00:00:00'})
+        self.assertIsNone(message.find('{urn:xmpp:delay}delay'))
+        self.assertEqual(message.findtext('body'), '0001Stored')
+        self.assertIsNone(message.get('id'))
+        self.assertIsNone(message.get('type'))
+        # The native parser looks up literal element names, including prefixes.
+        elements = []
+        parser = expat.ParserCreate()
+        parser.StartElementHandler = lambda name, attrs: elements.append((name, attrs))
+        parser.Parse(wire(message), True)
+        self.assertEqual([name for name, attrs in elements], ['message', 'body', 'x'])
+        self.assertEqual(elements[-1][1]['xmlns'], 'jabber:x:delay')
+
+    async def test_offline_timestamps_are_unique_within_one_second(self):
+        self.hub.clock = lambda: 0
+        await self.hub.message(self.a, stanza('<message to="Bob@ngi-prod"><body>First</body></message>'))
+        await self.hub.message(self.a, stanza('<message to="Bob@ngi-prod"><body>Second</body></message>'))
+        rows = self.accounts.db.execute('SELECT * FROM offline_messages ORDER BY id').fetchall()
+        self.assertEqual([self.hub.message_node(row) for row in rows], [
+            '19700101T00:00:00', '19700101T00:00:01'])
+
+    async def test_offline_fetch_rejects_malformed_node(self):
+        with self.assertRaises(ValueError):
+            await self.fetch(self.b, node='../1')
+
+    async def test_offline_fetch_waits_for_legacy_roster_callbacks(self):
+        waits = []
+        async def record(delay):
+            waits.append(delay)
+        self.hub.sleep = record
+        await self.hub.message(self.a, stanza('<message to="Bob@ngi-prod"><body>Queued</body></message>'))
+        await self.fetch(self.b)
+        self.assertEqual(waits, [1.0])
+        self.assertEqual(self.b_messages[0].findtext('body'), 'Queued')
 
     async def test_blocking_hides_presence_and_already_queued_message_headers(self):
         await self.subscribe(self.a, 'Bob')
@@ -265,7 +322,7 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         result = self.b_messages[-1][0]
         self.assertEqual(result.get('count'), '1')
         self.assertEqual(result[0].get('jid'), 'Alice@ngi-prod')
-        self.assertTrue(result[0].get('node').isdigit())
+        self.assertRegex(result[0].get('node'), r'^\d{8}T\d{2}:\d{2}:\d{2}$')
         query[0].set('jid', 'Bob@ngi-prod')
         await self.hub.offline(self.a, query, query[0])
         self.assertEqual(self.a_messages[-1][0].get('count'), '0')

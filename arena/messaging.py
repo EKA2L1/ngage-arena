@@ -2,8 +2,11 @@
 import asyncio
 import copy
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 import json
+import re
 import secrets
+import time
 import xml.etree.ElementTree as ET
 
 from arena.xmlutil import local
@@ -12,6 +15,9 @@ CLIENT = 'jabber:client'
 ROSTER = 'jabber:iq:roster'
 OFFLINE = 'http://jabber.org/protocol/offline'
 DISCO_ITEMS = 'http://jabber.org/protocol/disco#items'
+DELAY = 'jabber:x:delay'
+OFFLINE_STAMP = re.compile(r'[0-9]{8}T[0-9]{2}:[0-9]{2}:[0-9]{2}')
+OFFLINE_NODE = re.compile(r'(?:[0-9]{1,19}|[0-9]{8}T[0-9]{2}:[0-9]{2}:[0-9]{2})')
 
 
 def wire(node):
@@ -23,6 +29,9 @@ def wire(node):
             child.tag = local(child.tag)
             if child.tag == 'query':
                 child.set('xmlns', ROSTER)
+        elif child.tag == '{'+DELAY+'}x':
+            child.tag = 'x'
+            child.set('xmlns', DELAY)
     return ET.tostring(node, encoding='unicode', short_empty_elements=True).replace(' />', '/>')
 
 
@@ -38,9 +47,12 @@ class Connection:
 
 
 class Messaging:
-    def __init__(self, profiles):
+    def __init__(self, profiles, clock=time.time, sleep=asyncio.sleep, offline_fetch_delay=1.0):
         self.profiles = profiles
         self.db = profiles.db
+        self.clock = clock
+        self.sleep = sleep
+        self.offline_fetch_delay = offline_fetch_delay
         self.connections = set()
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS roster_items (
@@ -258,21 +270,44 @@ class Messaging:
         outgoing = copy.deepcopy(node)
         outgoing.set('from', self.jid(connection.user, connection.domain, connection.resource))
         if not await self.deliver(connection.user, other, outgoing, connection.resource):
+            for child in list(outgoing):
+                if child.tag in ('{jabber:x:delay}x', '{urn:xmpp:delay}delay'):
+                    outgoing.remove(child)
+            ET.SubElement(outgoing, 'x', {'xmlns': DELAY,
+                'from': connection.domain,
+                'stamp': self.next_offline_stamp()})
             with self.db:
                 count = self.db.execute('SELECT count(*) FROM offline_messages WHERE recipient=?', (other,)).fetchone()[0]
                 if count >= 256:
                     raise ValueError('Recipient mailbox is full')
                 self.db.execute('INSERT INTO offline_messages(sender,recipient,stanza) VALUES(?,?,?)', (connection.user, other, wire(outgoing)))
 
+    def next_offline_stamp(self):
+        value = datetime.fromtimestamp(self.clock(), timezone.utc).replace(microsecond=0)
+        rows = self.db.execute('SELECT stanza FROM offline_messages ORDER BY id DESC LIMIT 256').fetchall()
+        for row in rows:
+            delay = ET.fromstring(row['stanza']).find('{'+DELAY+'}x')
+            stamp = delay.get('stamp') if delay is not None else None
+            if stamp and OFFLINE_STAMP.fullmatch(stamp):
+                previous = datetime.strptime(stamp, '%Y%m%dT%H:%M:%S').replace(tzinfo=timezone.utc)
+                value = max(value, previous + timedelta(seconds=1))
+                break
+        return value.strftime('%Y%m%dT%H:%M:%S')
+
     def mailbox(self, connection, query, headers=False):
         sender = self.target(connection, query.get('jid')) if query.get('jid') else None
         identifier = query.get('node') if not headers else None
-        if identifier is not None and (not identifier.isascii() or not identifier.isdigit() or not 0 < int(identifier) < 2**63):
+        if identifier is not None and (not OFFLINE_NODE.fullmatch(identifier)
+                                       or identifier.isdigit() and not 0 < int(identifier) < 2**63):
             raise ValueError('Invalid offline message identifier')
         rows = self.db.execute('SELECT id,sender,stanza FROM offline_messages WHERE recipient=? ORDER BY id', (connection.user,)).fetchall()
-        return [row for row in rows if row['id'] not in connection.fetched
-                and (sender is None or row['sender'] == sender)
-                and (identifier is None or row['id'] == int(identifier))]
+        return [row for row in rows if (sender is None or row['sender'] == sender)
+                and (identifier is None or self.message_node(row) == identifier)]
+
+    def message_node(self, row):
+        delay = ET.fromstring(row['stanza']).find('{'+DELAY+'}x')
+        stamp = delay.get('stamp') if delay is not None else None
+        return stamp if stamp and OFFLINE_STAMP.fullmatch(stamp) else str(row['id'])
 
     async def offline(self, connection, node, query):
         if query.tag == '{'+DISCO_ITEMS+'}query':
@@ -283,7 +318,7 @@ class Messaging:
             reply = ET.Element('iq', {'type': 'result', 'id': node.get('id', '')})
             result = ET.SubElement(reply, 'query', {'xmlns': DISCO_ITEMS, 'node': OFFLINE, 'count': str(len(rows))})
             for row in rows:
-                ET.SubElement(result, 'item', {'jid': self.jid(row['sender'], connection.domain), 'node': str(row['id'])})
+                ET.SubElement(result, 'item', {'jid': self.jid(row['sender'], connection.domain), 'node': self.message_node(row)})
             await connection.send(wire(reply))
             return
         action = query.get('action')
@@ -293,7 +328,11 @@ class Messaging:
                                     [(message, connection.user) for message in connection.fetched])
             connection.fetched.clear()
         elif node.get('type') == 'get' and action == 'fetch':
-            for row in self.mailbox(connection, query):
+            rows = self.mailbox(connection, query)
+            if rows and self.offline_fetch_delay:
+                # PlayServer must apply the preceding roster callback before messages arrive.
+                await self.sleep(self.offline_fetch_delay)
+            for row in rows:
                 if self.can_contact(connection.user, row['sender']):
                     outgoing = ET.fromstring(row['stanza'])
                     resource = outgoing.get('from', '').partition('/')[2]
