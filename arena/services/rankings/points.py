@@ -35,9 +35,20 @@ class PointBoards:
             raise UnsupportedRanking('Unsupported point board operation')
         if (params.keys() != required or params['board'] not in ('ngps', 'ngpsglobal')
                 or params['$matchmakingMode'] != 'none' or params['format'] != 'csv'
-                or params['stat'] or params['userList'] or request.filters
+                or params['stat'] or request.filters
                 or params['periodicity'] != 'alltime' or params['ordering'] != 'natural'):
             raise UnsupportedRanking('Unsupported point board query')
+        members = []
+        if params['userList']:
+            if request.operation != 'proximitylist':
+                raise UnsupportedRanking('Unsupported friend point operation')
+            members = params['userList'].split(',')
+            if not members[-1].strip():
+                members.pop()
+            members = [name.strip() for name in members]
+            if not members or any(not re.fullmatch(r'[A-Za-z0-9_.-]{1,20}', name) for name in members):
+                raise ValueError('Invalid point board user list')
+            members = sorted({name.lower() for name in [params['name'], *members]})
         offset = 0
         if request.operation == 'proximitylist':
             if (not re.fullmatch(r'[A-Za-z0-9_.-]{1,20}', params['name'])
@@ -58,19 +69,22 @@ class PointBoards:
             values = [int(params['limit']), offset]
         global_board = params['board'] == 'ngpsglobal'
         condition = '' if global_board else ' AND achievements.game_class=?'
-        if not global_board:
-            values.insert(0, request.game_class)
+        scope_values = [] if global_board else [request.game_class]
+        membership = ''
+        if members:
+            membership = ' AND users.name COLLATE NOCASE IN ('+','.join('?' for _ in members)+')'
+            scope_values.extend(members)
         rows = list(self.db.execute('''WITH totals AS (
             SELECT users.name,
                 COALESCE(SUM(CASE WHEN ngp_type=1 THEN points ELSE 0 END),0) AS single,
                 COALESCE(SUM(CASE WHEN ngp_type=2 THEN points ELSE 0 END),0) AS multi
             FROM users LEFT JOIN achievements ON users.id=achievements.user_id'''+condition+'''
-            WHERE users.name NOT LIKE '~%' GROUP BY users.id), ranked AS (
+            WHERE users.name NOT LIKE '~%' '''+membership+''' GROUP BY users.id), ranked AS (
             SELECT *,single+multi AS total,
                 RANK() OVER (ORDER BY single+multi DESC) AS rank,
                 ROW_NUMBER() OVER (ORDER BY single+multi DESC,name COLLATE NOCASE) AS position
             FROM totals)
-            SELECT * FROM ranked '''+selection, values))
+            SELECT * FROM ranked '''+selection, scope_values+values))
         payload = f'0\nOK\n1|{request.query_id}|{request.operation}||{params["board"]}|{len(rows)}|{offset}\n'
         for row in rows:
             fields = [row['name'], row['rank'], row['single'], row['multi']]

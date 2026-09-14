@@ -125,9 +125,56 @@ class PointBoardTests(unittest.TestCase):
         for params in [dict(above='-1'), dict(below='101'), dict(name='a|b')]:
             with self.subTest(params=params), self.assertRaises(ValueError):
                 self.rows(self.query(**params))
-        for params in [dict(userList='Peer'), dict(stat='TOTAL_XP'), dict(periodicity='daily')]:
+        for params in [dict(stat='TOTAL_XP'), dict(periodicity='daily')]:
             with self.subTest(params=params), self.assertRaises(UnsupportedRanking):
                 self.rows(self.query(**params))
+
+    def test_friend_lookup_uses_named_cohort_and_returns_only_the_anchor(self):
+        self.award(1)
+        self.award(35, name='Peer')
+        outsider = self.accounts.create_user('Outsider', 'native-test')
+        self.achievements.response(b'<player userName="Outsider"><commands g="58600">'
+                                   b'<add id="34" ts="20260913:141429.3"/></commands></player>', outsider)
+        self.assertEqual(self.rows(self.query())[0][1], '2')
+        self.assertEqual(self.rows(self.query(name='angler', userList=' peer, PEER, Angler, Missing, ')),
+                         [['Angler', '1', '10', '0', '0', '10', '0']])
+        self.award(36, name='Peer')
+        self.assertEqual(self.rows(self.query(userList='Peer, ')),
+                         [['Angler', '2', '10', '0', '0', '10', '0']])
+        self.assertEqual(self.rows(self.query(userList='Peer, ', above='2', below='2')),
+                         [['Peer', '1', '0', '30', '0', '30', '0'],
+                          ['Angler', '2', '10', '0', '0', '10', '0']])
+        self.assertEqual(self.rows(self.query(name='Missing', userList='Peer, ')), [])
+        self.assertEqual(self.rows(self.query(userList='Missing, ')),
+                         [['Angler', '1', '10', '0', '0', '10', '0']])
+
+    def test_friend_lookup_keeps_game_points_separate(self):
+        self.award(35)
+        self.award(1, game='123')
+        self.award(34, name='Peer')
+        self.assertEqual(self.rows(self.query(userList='Peer')),
+                         [['Angler', '1', '40', '10', '0', '50', '0']])
+        self.assertEqual(self.rows(self.query('ngps', '58600', userList='Peer, ')),
+                         [['Angler', '2', '0', '10', '10', '0']])
+        self.assertEqual(self.rows(self.query('ngps', '804', userList='Peer, ')),
+                         [['Angler', '1', '0', '0', '0', '0']])
+
+    def test_friend_lists_reject_malformed_names_and_unobserved_operations(self):
+        for names in (' ', ',', 'Peer,,', ',Peer', 'Peer, ,Angler', 'a|b', '~internal', 'x'*21):
+            with self.subTest(names=names), self.assertRaises(ValueError):
+                self.rows(self.query(userList=names))
+        root = ET.fromstring(self.query(userList='Peer'))
+        root.set('EventType', 'topn')
+        request = root.find('request')
+        request.set('type', 'topn')
+        items = request.find('itemlist')
+        for item in list(items):
+            if item.get('name') in ('name', 'above', 'below'):
+                items.remove(item)
+        ET.SubElement(items, 'item', name='offset', value='0')
+        ET.SubElement(items, 'item', name='limit', value='10')
+        with self.assertRaises(UnsupportedRanking):
+            self.rows(ET.tostring(root))
 
     def test_migration_preserves_earned_time_and_backfills_definition_types(self):
         self.accounts.db.execute('DROP TABLE achievements')

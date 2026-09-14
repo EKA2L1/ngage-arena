@@ -1,0 +1,19 @@
+<rankings EventType="proximitylist" source="jabber:Angler" name="Angler" response="no" debug="yes">
+<request type="proximitylist">
+<gameinfo gameclassid="4444" />
+ <itemlist>
+ <item name="$version" value="1" />
+ <item name="board" value="ngpsglobal" />
+ <item name="$matchmakingMode" value="none" />
+ <item name="format" value="csv" />
+ <item name="queryid" value="1" />
+ <item name="name" value="Angler" />
+ <item name="stat" value="" />
+ <item name="above" value="2" />
+ <item name="below" value="2" />
+ <item name="periodicity" value="alltime" />
+ <item name="ordering" value="natural" />
+ <item name="userList" value="Peer, " />
+ </itemlist>       
+</request>
+</rankings>

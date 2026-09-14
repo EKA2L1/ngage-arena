@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+from pathlib import Path
 import tempfile
 import unittest
 
@@ -11,6 +12,36 @@ from arena.runtime import default_games
 from arena.games.hooked.tests.fixtures import NATIVE_SUBMIT, NATIVE_TOPN
 
 class RankingHTTPTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_friend_point_window_is_public_and_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            accounts = AccountStore(directory)
+            owner = accounts.create_user('Angler', 'native-test')
+            accounts.create_user('Peer', 'native-test')
+            accounts.create_user('OutsideList', 'native-test')
+            server = CommunityServer(accounts, default_games(accounts))
+            server.achievements.response(b'<player userName="Angler"><commands g="58600">'
+                                         b'<add id="35" ts="20260913:141429.3"/></commands></player>', owner)
+            body = (Path(__file__).parent/'fixtures/launcher-friend-points.xml').read_bytes()
+            listener = await asyncio.start_server(server.http, '127.0.0.1', 0)
+            try:
+                reader, writer = await asyncio.open_connection(*listener.sockets[0].getsockname())
+                writer.write((f'POST /ngi/servlets/rankings HTTP/1.1\r\nHost: localhost\r\n'
+                              f'Content-Length: {len(body)}\r\n\r\n').encode()+body)
+                await writer.drain()
+                reply = await asyncio.wait_for(reader.read(), 2)
+                writer.close()
+                await writer.wait_closed()
+                self.assertTrue(reply.startswith(b'HTTP/1.0 200 OK\r\n'))
+                self.assertIn(b'Angler|1|0|10|0|10|0\nPeer|2|0|0|0|0|0', reply)
+                self.assertNotIn(b'OutsideList', reply)
+                self.assertNotIn(b'Set-Cookie:', reply)
+                self.assertEqual(server.http_sessions, {})
+            finally:
+                listener.close()
+                await listener.wait_closed()
+                await server.close()
+                accounts.close()
+
     async def test_anonymous_http_reads_neither_create_sessions_nor_authorize_writes(self):
         with tempfile.TemporaryDirectory() as directory:
             accounts = AccountStore(directory)
