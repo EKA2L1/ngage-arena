@@ -26,14 +26,15 @@ The defaults are Community HTTP 8192/8193/8194 TCP, XMPP 5222 TCP, SNAP 9090 UDP
 
 ## Connect EKA2L1
 
-In EKA2L1's **Hosts** settings, add these two mappings for the hosted service:
+In EKA2L1's **Hosts** settings, add these mappings for the hosted service:
 
 | Guest hostname | Target |
 | --- | --- |
 | `*.n-gage.com` | `ngage.yeatse.com` |
 | `*.yav4.com` | `ngage.yeatse.com` |
+| `playapps.ngage.mobi` | `ngage.yeatse.com` |
 
-Suffix mappings cover the original game, Store, login, XMPP and SNAP names. Host targets may include a port for local development, such as `arena.n-gage.com = 127.0.0.1:8192`. Remote HTTPS uses the target hostname for system certificate validation.
+The two suffix mappings cover the games, Store, login, XMPP and SNAP names. The retail Launcher stores its web Rankings URL under the separate `playapps.ngage.mobi` name. Host targets may include a port for local development, such as `arena.n-gage.com = 127.0.0.1:8192`. Remote HTTPS uses the target hostname for system certificate validation.
 
 Install the original retail games and enter N-Gage 2.0 titles through the Launcher. No game, ROM, certificate or access-point setup helper is required. Tomb Raider downloads its billing provider from the server when needed.
 
