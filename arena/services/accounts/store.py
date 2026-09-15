@@ -1,11 +1,8 @@
 """Shared Arena accounts and explicit bindings for passwordless legacy clients."""
 import argparse
-from contextlib import closing
-import fcntl
 import getpass
 import hashlib
 import hmac
-import os
 from pathlib import Path
 import re
 import secrets
@@ -18,29 +15,20 @@ class AccountStore:
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         database = directory / 'community.sqlite3'
-        with (directory / '.migration.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            legacy = directory / 'ashen.sqlite3'
-            if not database.exists() and legacy.exists():
-                temporary = directory / 'community.sqlite3.migrating'
-                with closing(sqlite3.connect(legacy)) as source, closing(sqlite3.connect(temporary)) as target:
-                    source.backup(target)
-                temporary.chmod(0o600)
-                os.replace(temporary, database)
-            self.db = sqlite3.connect(database)
-            database.chmod(0o600)
-            self.db.row_factory = sqlite3.Row
-            self.db.execute('PRAGMA foreign_keys=ON')
-            self.db.execute('PRAGMA journal_mode=WAL')
-            self.db.executescript('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY, name TEXT UNIQUE COLLATE NOCASE NOT NULL,
-                salt BLOB NOT NULL, password BLOB NOT NULL, created REAL NOT NULL);
-            CREATE TABLE IF NOT EXISTS identities (
-                provider TEXT NOT NULL, subject TEXT NOT NULL,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                PRIMARY KEY(provider,subject));
-            ''')
+        self.db = sqlite3.connect(database)
+        database.chmod(0o600)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute('PRAGMA foreign_keys=ON')
+        self.db.execute('PRAGMA journal_mode=WAL')
+        self.db.executescript('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY, name TEXT UNIQUE COLLATE NOCASE NOT NULL,
+            salt BLOB NOT NULL, password BLOB NOT NULL, created REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS identities (
+            provider TEXT NOT NULL, subject TEXT NOT NULL,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            PRIMARY KEY(provider,subject));
+        ''')
 
     def create_user(self, name, password):
         if not re.fullmatch(r'[A-Za-z0-9_.-]{1,20}', name) or not 1 <= len(password) <= 128:

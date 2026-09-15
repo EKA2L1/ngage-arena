@@ -62,12 +62,6 @@ class Store:
         self.db.execute('PRAGMA foreign_keys=ON')
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript(SCHEMA)
-        for table,column in (('race_results','eligible'),('challenges','competitive')):
-            if column not in {row['name'] for row in self.db.execute(f'PRAGMA table_info({table})')}:
-                with self.db:
-                    self.db.execute(f'ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1')
-                    if column == 'eligible':
-                        self.db.execute('UPDATE race_results SET eligible=0 WHERE id IN (SELECT result_id FROM challenges WHERE race_results.milliseconds>=target_ms)')
         self.accounts = accounts or AccountStore(directory)
         self.owns_accounts = accounts is None
         for row in self.db.execute('SELECT identity FROM users'):

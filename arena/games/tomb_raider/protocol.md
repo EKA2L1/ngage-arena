@@ -54,7 +54,7 @@ The local upload catalogue uses parent 1202 for ordinary clips and 1203 for guid
 
 A message contains its body string, two type bytes, message ID, sender string and two `u32` values. Type 1 displays the welcome message; type 0 displays a challenge message with the native Revenge action. That action requests directory 915 with `sender,revenge`. The server restores the corresponding course from the latest completed winning challenge against the recipient, so revenge works after a fresh login.
 
-The client caches received and sent messages in a Symbian stream file. `logincookie.dat` is also a Symbian stream, not a plain C string: a native five-character nickname has a one-byte descriptor-length prefix followed by its five characters. The setup helper leaves account cookies and saved games alone.
+The client caches received and sent messages in a Symbian stream file. `logincookie.dat` is also a Symbian stream, not a plain C string: a native five-character nickname has a one-byte descriptor-length prefix followed by its five characters.
 
 ## Replay containers
 
@@ -72,6 +72,6 @@ The recognized game's clip loader at `0x0044a904` has one direct caller, at `0x0
 
 The game also reads an optional `adverts.dat` table to offer location-specific guide entry points. Its eight-byte records combine room in bits 0–7, minimum Z in 8–12, minimum X in 13–17, maximum Z in 18–22, maximum X in 23–27, and level in 28–31, followed by a `u32` directory ID. Tile bounds are inclusive and relative to the room's origin. The loader accepts at most 100 matching records per level, and the client's strategy argument retains only a 16-bit directory ID.
 
-The original installation lacked this file. `author-guide-links` and the setup helper now support explicitly authored regional maps with validation and backups. A Caves room-0 record produced the native STRATEGY film icon. The left softkey launched `GSBAPP` in strategy mode, requested directory 1403 directly, and downloaded into the same full-recording player. This separate entry path also did not produce a second controllable Lara or an offline guide library. It does not justify patching the game into an invented guide mode.
+The original installation lacked this file. `author-guide-links` supports explicitly authored regional maps with validation. A Caves room-0 record produced the native STRATEGY film icon. The left softkey launched `GSBAPP` in strategy mode, requested directory 1403 directly, and downloaded into the same full-recording player. This separate entry path also did not produce a second controllable Lara or an offline guide library. It does not justify patching the game into an invented guide mode.
 
 Official courses, walkthrough recordings, original accounts and Nokia's unpublished scoring formula are unavailable. Local imports and the documented +10/-5 policy are explicit replacements. No ROM, game executable, extracted snapshot or recording is included in source control.

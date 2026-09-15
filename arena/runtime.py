@@ -32,11 +32,11 @@ async def serve_community(args):
             from arena.services.community.tls import CommunityListener, server_context
             context = server_context(args.tls_cert, args.tls_key, args.legacy_tls)
             for port in tls_ports:
-                listeners.append(CommunityListener(server.http, args.host, port, context))
-            LOG.info('Community HTTP/HTTPS listening on %s:%s', args.host, sorted(tls_ports))
+                listeners.append(CommunityListener(server.http, args.http_host, port, context))
+            LOG.info('Community HTTP/HTTPS listening on %s:%s', args.http_host, sorted(tls_ports))
         for port in set(args.http_port if isinstance(args.http_port, list) else [args.http_port]):
             if port not in tls_ports:
-                listeners.append(await asyncio.start_server(server.http, args.host, port))
+                listeners.append(await asyncio.start_server(server.http, args.http_host, port))
         listeners.append(await asyncio.start_server(server.xmpp, args.host, args.xmpp_port))
         if args.snap_port is not None:
             transport, _ = await asyncio.get_running_loop().create_datagram_endpoint(
@@ -53,7 +53,7 @@ async def serve_community(args):
                 lambda: Arena(tomb, args.billing), local_addr=(args.host, args.airplay_port))
             datagrams.append(transport)
             LOG.info('AirPlay UDP listening on %s:%d', args.host, args.airplay_port)
-        LOG.info('Community listening on %s: HTTP %s, XMPP %d', args.host, args.http_port, args.xmpp_port)
+        LOG.info('Community listening on %s: HTTP %s, XMPP %d', args.http_host, args.http_port, args.xmpp_port)
         await asyncio.gather(*(listener.serve_forever() for listener in listeners))
     finally:
         for transport in datagrams:
@@ -70,6 +70,7 @@ async def serve_community(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--http-host', help='HTTP listener address; defaults to --host')
     parser.add_argument('--http-port', type=int, action='append', help='Repeat for each legacy Community port (default: 8192, 8193 and 8194)')
     parser.add_argument('--tls-port', type=int, action='append', help='Accept both HTTP and HTTPS on this port')
     parser.add_argument('--tls-cert', type=Path)
@@ -86,6 +87,7 @@ def main():
     parser.add_argument('--trace', type=Path)
     parser.add_argument('--log-level', choices=('INFO', 'DEBUG'), default='INFO')
     args = parser.parse_args()
+    args.http_host = args.http_host or args.host
     if args.tls_port and (not args.tls_cert or not args.tls_key):
         parser.error('--tls-port requires --tls-cert and --tls-key')
     args.http_port = args.http_port or [8192, 8193, 8194]

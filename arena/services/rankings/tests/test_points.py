@@ -175,19 +175,3 @@ class PointBoardTests(unittest.TestCase):
         ET.SubElement(items, 'item', name='limit', value='10')
         with self.assertRaises(UnsupportedRanking):
             self.rows(ET.tostring(root))
-
-    def test_migration_preserves_earned_time_and_backfills_definition_types(self):
-        self.accounts.db.execute('DROP TABLE achievements')
-        self.accounts.db.execute('''CREATE TABLE achievements (
-            game_class TEXT NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id),
-            achievement_id INTEGER NOT NULL, points INTEGER NOT NULL,
-            earned TEXT NOT NULL, received REAL NOT NULL,
-            PRIMARY KEY(game_class,user_id,achievement_id))''')
-        self.accounts.db.execute('INSERT INTO achievements VALUES(?,?,?,?,?,?)',
-                                ('58600', self.owner, 35, 10, '20260913:141429.3', 1.0))
-        self.accounts.db.commit()
-        for _ in range(2):
-            self.rankings = RankingsService(self.accounts, self.games)
-        self.assertEqual(self.rows(NATIVE_POINTS), [['Angler', '1', '0', '10', '0', '10', '0']])
-        row = self.accounts.db.execute('SELECT * FROM achievements').fetchone()
-        self.assertEqual((row['earned'], row['received'], row['ngp_type']), ('20260913:141429.3', 1.0, 2))

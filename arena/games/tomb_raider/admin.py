@@ -43,7 +43,7 @@ def main():
     try:
         if args.command == 'author-guide-links':
             args.output.write_bytes(encode_links(json.loads(args.description.read_text())))
-            print('Native guide links written; install with arena.games.tomb_raider.setup --guide-links.')
+            print('Native guide links written.')
         elif args.command == 'author-course':
             course = GHOST_HEADER.pack(args.race_id,args.level,args.room,len(args.checkpoint),
                 args.yaw & 0xffffffff,0,args.limit_seconds*25,*args.start,0x1234)

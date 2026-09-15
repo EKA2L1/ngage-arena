@@ -8,28 +8,20 @@ from arena.services.rankings.service import UnsupportedRanking
 
 
 class AchievementStore:
-    def __init__(self, db, games):
+    def __init__(self, db):
         self.db = db
         self.db.execute('''CREATE TABLE IF NOT EXISTS achievements (
             game_class TEXT NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id),
             achievement_id INTEGER NOT NULL, points INTEGER NOT NULL,
             earned TEXT NOT NULL, received REAL NOT NULL, ngp_type INTEGER NOT NULL,
             PRIMARY KEY(game_class,user_id,achievement_id))''')
-        if 'ngp_type' not in {row[1] for row in db.execute('PRAGMA table_info(achievements)')}:
-            with db:
-                db.execute('ALTER TABLE achievements ADD COLUMN ngp_type INTEGER NOT NULL DEFAULT 0')
-                for game in games.games.values():
-                    for identifier, category in getattr(game, 'achievement_types', {}).items():
-                        db.execute('''UPDATE achievements SET ngp_type=?
-                            WHERE game_class=? AND achievement_id=?''',
-                                   (category, game.game_class, identifier))
 
 
 class AchievementService:
     def __init__(self, accounts, games):
         self.accounts = accounts
         self.games = games
-        self.db = AchievementStore(accounts.db, games).db
+        self.db = AchievementStore(accounts.db).db
 
     def response(self, body, user):
         name = self.accounts.name(user) if user is not None else None

@@ -1,7 +1,5 @@
 from collections import defaultdict
 from dataclasses import replace
-import sqlite3
-from contextlib import closing
 import struct
 import tempfile
 import unittest
@@ -122,16 +120,6 @@ class HighSeizeServerTests(unittest.TestCase):
             'SELECT slot,commander FROM hs_players WHERE match_id=? ORDER BY slot', (room.match,)).fetchall()
         self.assertEqual([tuple(row) for row in rows], [
             (slot, commander_wire(name=f'Commander {slot}'.encode(), slot=slot)) for slot in (1, 2)])
-
-    def test_legacy_player_rows_survive_idempotent_schema_upgrade(self):
-        with closing(sqlite3.connect(':memory:')) as db:
-            db.execute('''CREATE TABLE hs_players (match_id INTEGER, user_id INTEGER,
-                slot INTEGER, name TEXT, team INTEGER, outcome TEXT, PRIMARY KEY(match_id,slot))''')
-            db.execute("INSERT INTO hs_players VALUES(1,2,1,'Captain',0,'win')")
-            HighSeizeStore(db)
-            HighSeizeStore(db)
-            self.assertEqual(db.execute('SELECT * FROM hs_players').fetchone(),
-                             (1, 2, 1, 'Captain', 0, 'win', None))
 
     def battle(self, peer, message):
         self.game(peer, replace(message.packet(), destination=0))

@@ -35,9 +35,6 @@ class HighSeizeStore:
             state TEXT NOT NULL, PRIMARY KEY(match_id,ordinal),
             UNIQUE(match_id,source,message_id));
         ''')
-        if 'commander' not in {row[1] for row in db.execute('PRAGMA table_info(hs_players)')}:
-            with db:
-                db.execute('ALTER TABLE hs_players ADD COLUMN commander BLOB')
 
     def recover(self):
         with self.db:

@@ -7,7 +7,7 @@ from arena.services.rankings.service import UnsupportedRanking
 
 class PointBoards:
     def __init__(self, accounts, games):
-        self.db = AchievementStore(accounts.db, games).db
+        self.db = AchievementStore(accounts.db).db
         self.games = games
 
     def totals(self, user, game_class=None, *, game_uid=None):
