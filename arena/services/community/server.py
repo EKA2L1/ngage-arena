@@ -114,8 +114,17 @@ class CommunityServer:
         params = fields(operation)
         try:
             if method == 'createUser':
-                self.store.create_user(params.get('username', ''), params.get('password', ''))
-                result = '<createUserResponse xmlns="urn:CommunityApp"><createUserReturn>true</createUserReturn></createUserResponse>'
+                name = params.get('username', '')
+                self.store.create_user(name, params.get('password', ''))
+                if ngi:
+                    # The Launcher reads the same [status, name] pair it expects from authenticateUser.
+                    result = ('<createUserResponse xmlns="urn:CommunityApp"><createUserReturn>'
+                              '<item xsi:type="xsd:string">0</item>'
+                              '<item xsi:type="xsd:string">'+escape(name)+'</item>'
+                              '</createUserReturn></createUserResponse>')
+                else:
+                    result = ('<createUserResponse xmlns="urn:CommunityApp">'
+                              '<createUserReturn>true</createUserReturn></createUserResponse>')
             elif method == 'authenticateUser':
                 user = self.store.authenticate(params.get('username', ''), params.get('password', ''))
                 if session is not None:

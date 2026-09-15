@@ -6,6 +6,10 @@ The Launcher on the 5320 posts `authenticateUser` to `/ngi/axis/services/NGIComm
 
 The native Launcher accepted `["0", canonical_username]`, authenticated through legacy SNAP/XMPP, published presence and showed its green online indicator. These operations use the shared account store. The cookie also travels in the URL path, so request logging omits matrix parameters.
 
+### N-Gage 2.0 registration
+
+Registration shares that contract. The Launcher posts `createUser` to the same endpoint with `username`, `password`, `email`, `phoneNum`, `dateOfBirth`, `imei`, `imsi`, `languageId` and `gameClassId`; the empty fields are sent as empty elements. `createUserReturn` must carry the same `item` pair as `authenticateUser`: string `0` followed by the canonical username. Returning the legacy boolean `true` stores the account but leaves the Launcher on `ERROR_ACCOUNT_CREATION` ("Unable to create your account"); annotating that boolean with `xsi:type="xsd:boolean"` does not help. The Launcher shows that same generic string for any response it cannot parse, so a `Username is already registered` SOAP fault also surfaces as `ERROR_ACCOUNT_CREATION` rather than its dedicated `ERROR_USERNAME_TAKEN`. With the item pair it proceeds straight into SNAP login, `getMiniProfile`/`getProfile`/`getFriendsMiniProfiles` synchronisation and ranking queries without a further request. The legacy `/n-gage/axis/services/Community` endpoint keeps the boolean form, whose field list differs (`firstName`, `lastName`, `question`, `answer`).
+
 `CommunityServer` owns SOAP session cookies, HTTP endpoint routing and XMPP connections. It delegates profile, message, ranking and achievement operations to their services and game-specific XMPP reports to `GameRegistry`.
 
 HTTP listeners support `Expect: 100-continue`; legacy registration/authentication uses `/n-gage/axis/services/Community`. N-Gage 2.0 uses `/ngi/axis/services/NGICommunity`. These return different native response envelopes. HTTP Host remains the original guest hostname even with a DNS override.
