@@ -10,5 +10,5 @@
 
 ## Host-only retail validation follow-up — 15 September 2026
 
-- Re-test the untouched retail `system/libs/framework/arena.amr` (SHA-256 `7da8bbcfcad05fadb87843d398f811a5a19963c077699e84670a1429a08a80c2`) with `arena.n-gage.com = 127.0.0.1:8193`. The game launches after restoring the retail `game.id`, but entering N-Gage Arena currently ends at the native server-error page; EKA2L1 logs a libuv `ECONNREFUSED`. Determine the actual translated destination before claiming the port-mapping path passes.
+- Complete the untouched retail `arena.amr` login response after Community `checkImei`. EKA2L1 revision `8e839439f` now delivers the request to local port 8193 without a libuv failure or guest crash, but the client rejects the current service response with its Server error page.
 - Keep `game.id` out of all setup flows. It is a game-card-global retail file: the previous Tomb Raider setup overwrote it and made High Seize report `Invalid game card`.

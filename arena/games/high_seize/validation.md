@@ -110,3 +110,10 @@ These are unedited native screenshots from the runs above. Match 3 covers comman
 | Native surrender result | [Mission failed](screenshots/2026-09-15-m4-main-mission-result.jpg) | [Mission successful](screenshots/2026-09-15-m4-peer-mission-result.jpg) |
 | Loser: 3:21 / 3:24, seven units lost | [Host](screenshots/2026-09-15-m4-main-loser-info.jpg) | [Peer](screenshots/2026-09-15-m4-peer-loser-info.jpg) |
 | Winner: 3:24 / 3:24, zero units lost | [Host, with label redraw artifact](screenshots/2026-09-15-m4-main-winner-info.jpg) | [Peer](screenshots/2026-09-15-m4-peer-winner-info.jpg) |
+
+
+## Untouched retail host-port mapping — 15 September 2026
+
+The original `arena.amr` (SHA-256 `7da8bbcfcad05fadb87843d398f811a5a19963c077699e84670a1429a08a80c2`) and retail `game.id` ran on N-Gage ROM `nem-4` with `arena.n-gage.com = 127.0.0.1:8193`. EKA2L1 Release revision `8e839439f` shared synthetic host-port mappings between the resolver and TCP protocol instances. The unmodified client reached the local non-privileged listener and the trace recorded `POST /n-gage/axis/services/Community` followed by `checkImei` completion at 19:29:17. The native process remained alive, and its log contained no libuv connection failure, guest panic or access violation.
+
+The current service response is still rejected by the native Server error page, so this validates EKA2L1's port mapping and removal of the AMR port patch, not the complete High Seize login. The next work item is response compatibility after `checkImei`. Screenshots preserve the selected retail Arena entry and the resulting response page: [selection](screenshots/2026-09-15-retail-arena-selection.png), [response](screenshots/2026-09-15-retail-check-imei-server-response.png).
